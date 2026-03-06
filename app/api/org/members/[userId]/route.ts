@@ -28,8 +28,9 @@ export async function DELETE(
     .limit(1)
     .single();
 
-  if (!myMembership || myMembership.role !== 'owner') {
-    return NextResponse.json({ error: 'Only owners can remove members' }, { status: 403 });
+  const role = myMembership.role?.toLowerCase?.();
+  if (!myMembership || !['owner', 'admin'].includes(role ?? '')) {
+    return NextResponse.json({ error: 'Only owners and admins can remove members' }, { status: 403 });
   }
 
   const { error } = await supabase

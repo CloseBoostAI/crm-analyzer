@@ -17,6 +17,7 @@ Run these in **Supabase Dashboard → SQL Editor** in this exact order:
 | 5 | `supabase-migrations-dismissed-recommendations.sql` | Dismissed Smart Task recommendations |
 | 6 | `supabase-migrations-rls-fix.sql` | `user_organization_ids()` helper, RLS fixes |
 | 7 | `supabase-migrations-inbound-emails.sql` | Inbound emails table, org inbound_email column |
+| 8 | `supabase-migrations-org-admin-delete-members.sql` | Allow admins (in addition to owners) to remove members |
 
 ---
 

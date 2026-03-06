@@ -419,6 +419,7 @@ function TeamSection() {
 
   const role = membership?.role?.toLowerCase?.() ?? membership?.role ?? ""
   const canInvite = membership && ["owner", "admin"].includes(role)
+  const canRemoveMembers = membership && ["owner", "admin"].includes(role)
   const isOwner = role === "owner"
 
   const handleInvite = async () => {
@@ -596,7 +597,7 @@ function TeamSection() {
                     <span className="ml-2 capitalize">({m.role})</span>
                   </p>
                 </div>
-                {isOwner && m.role !== "owner" && (
+                {canRemoveMembers && m.role !== "owner" && (
                   <Button
                     variant="ghost"
                     size="icon"

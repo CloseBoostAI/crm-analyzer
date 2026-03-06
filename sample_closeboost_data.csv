@@ -1,0 +1,18 @@
+Record ID,Deal Name,Deal Stage,Deal owner,Amount,Associated Note,Associated Note IDs,Close Date
+12345,Acme Corporation Enterprise Deal,Appointment Set,John Smith,25000,"Client is interested in premium package. Follow up next week to discuss pricing.",note-001,2025-03-15
+12346,TechStart Inc Annual Contract,Qualified To Buy,Sarah Johnson,15000,"Demo completed successfully. Waiting for budget approval.",note-002,2025-03-20
+12347,Global Solutions Ltd Partnership,Proposal Sent,Mike Davis,35000,"Proposal sent with custom pricing. Client requested revisions.",note-003,2025-03-25
+12348,Retail Plus Expansion,Appointment Set,Emily Chen,8000,"Initial consultation scheduled. Client wants to expand to 3 new locations.",note-004,2025-04-01
+12349,Custom Tech Solutions,Qualified To Buy,Robert Brown,22000,"Technical requirements discussed. Awaiting stakeholder feedback.",note-005,2025-04-05
+12350,Innovation Labs Deal,Negotiation,John Smith,45000,"Finalizing contract terms. Negotiating payment schedule.",note-006,2025-04-10
+12351,Startup Hub Subscription,Appointment Set,Sarah Johnson,5000,"New startup interested in our services. Initial meeting next week.",note-007,2025-04-12
+12352,Enterprise Corp Multi-Year,Won,Robert Brown,75000,"Deal closed successfully. Multi-year contract signed.",note-008,2025-02-28
+12353,Small Business Package,Proposal Sent,Mike Davis,12000,"Proposal delivered. Client reviewing options.",note-009,2025-04-15
+12354,Digital Agency Partnership,Qualified To Buy,Emily Chen,28000,"Qualified lead. Strong budget and decision-making authority.",note-010,2025-04-18
+
+
+
+
+
+
+

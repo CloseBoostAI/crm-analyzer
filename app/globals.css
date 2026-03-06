@@ -1,0 +1,185 @@
+@tailwind base;
+@tailwind components;
+@tailwind utilities;
+
+@layer base {
+  :root {
+    --background: 0 0% 98%;
+    --foreground: 224 71% 4%;
+
+    --card: 0 0% 100%;
+    --card-foreground: 224 71% 4%;
+
+    --popover: 0 0% 100%;
+    --popover-foreground: 224 71% 4%;
+
+    --primary: 199 89% 48%;
+    --primary-foreground: 0 0% 100%;
+
+    --secondary: 210 40% 94%;
+    --secondary-foreground: 224 71% 4%;
+
+    --muted: 210 40% 94%;
+    --muted-foreground: 220 9% 46%;
+
+    --accent: 199 89% 95%;
+    --accent-foreground: 199 89% 35%;
+
+    --destructive: 0 84% 60%;
+    --destructive-foreground: 0 0% 100%;
+
+    --border: 214 32% 88%;
+    --input: 214 32% 88%;
+    --ring: 199 89% 48%;
+
+    --radius: 0.625rem;
+  }
+
+  .dark {
+    --background: 224 71% 4%;
+    --foreground: 210 40% 98%;
+
+    --card: 224 50% 8%;
+    --card-foreground: 210 40% 98%;
+
+    --popover: 224 50% 8%;
+    --popover-foreground: 210 40% 98%;
+
+    --primary: 199 89% 55%;
+    --primary-foreground: 224 71% 4%;
+
+    --secondary: 224 40% 14%;
+    --secondary-foreground: 210 40% 98%;
+
+    --muted: 224 40% 14%;
+    --muted-foreground: 215 20% 65%;
+
+    --accent: 199 89% 18%;
+    --accent-foreground: 199 89% 75%;
+
+    --destructive: 0 63% 45%;
+    --destructive-foreground: 210 40% 98%;
+
+    --border: 224 40% 18%;
+    --input: 224 40% 18%;
+    --ring: 199 89% 55%;
+  }
+}
+
+@layer base {
+  * {
+    @apply border-border;
+  }
+  body {
+    @apply bg-background text-foreground;
+  }
+}
+
+/* Graph paper background - grid pattern */
+.bg-grid-pattern {
+  background-image: 
+    linear-gradient(to right, hsl(var(--primary) / 0.12) 1px, transparent 1px),
+    linear-gradient(to bottom, hsl(var(--primary) / 0.12) 1px, transparent 1px);
+  background-size: 32px 32px;
+}
+.dark .bg-grid-pattern {
+  background-image: 
+    linear-gradient(to right, hsl(var(--primary) / 0.06) 1px, transparent 1px),
+    linear-gradient(to bottom, hsl(var(--primary) / 0.06) 1px, transparent 1px);
+}
+
+/* Lined paper - notebook style with red margin */
+.bg-lined-pattern {
+  background-color: hsl(var(--background));
+  background-image: 
+    /* Red margin line on the left (vertical line at ~36px) - painted on top */
+    linear-gradient(to right, transparent 0, transparent 34px, #e53e3e 34px, #e53e3e 36px, transparent 36px),
+    /* Horizontal ruled lines */
+    repeating-linear-gradient(
+      to bottom,
+      transparent,
+      transparent 31px,
+      hsl(var(--border) / 0.5) 31px,
+      hsl(var(--border) / 0.5) 32px
+    );
+  background-size: 100% 100%, 100% 32px;
+  background-position: 0 0, 0 0;
+}
+.dark .bg-lined-pattern {
+  background-image: 
+    linear-gradient(to right, transparent 0, transparent 34px, #dc2626 34px, #dc2626 36px, transparent 36px),
+    repeating-linear-gradient(
+      to bottom,
+      transparent,
+      transparent 31px,
+      hsl(var(--border) / 0.4) 31px,
+      hsl(var(--border) / 0.4) 32px
+    );
+}
+
+/* Card tech - bold accent with glow */
+.card-tech {
+  border: 1px solid hsl(var(--border));
+  border-left: 4px solid hsl(var(--primary));
+  box-shadow: 
+    0 4px 6px -1px hsl(var(--foreground) / 0.04),
+    0 2px 4px -2px hsl(var(--foreground) / 0.03);
+  background: linear-gradient(135deg, hsl(var(--card)) 0%, hsl(var(--card)) 100%);
+}
+.card-tech:hover {
+  box-shadow: 
+    0 10px 15px -3px hsl(var(--primary) / 0.08),
+    0 4px 6px -4px hsl(var(--primary) / 0.05);
+}
+.dark .card-tech {
+  border-left-color: hsl(var(--primary));
+  box-shadow: 0 4px 6px -1px hsl(0 0% 0% / 0.4);
+}
+.dark .card-tech:hover {
+  box-shadow: 0 10px 15px -3px hsl(var(--primary) / 0.15);
+}
+
+/* Gradient text utility */
+.gradient-text {
+  background: linear-gradient(135deg, hsl(var(--primary)), hsl(199 89% 35%));
+  -webkit-background-clip: text;
+  -webkit-text-fill-color: transparent;
+  background-clip: text;
+}
+
+.scrollbar-hidden {
+  -ms-overflow-style: none !important;
+  scrollbar-width: none !important;
+}
+.scrollbar-hidden::-webkit-scrollbar {
+  display: none !important;
+}
+
+.scrollbar-light {
+  scrollbar-width: thin;
+  scrollbar-color: #d4d4d8 transparent;
+}
+.scrollbar-light::-webkit-scrollbar {
+  height: 8px;
+}
+.scrollbar-light::-webkit-scrollbar-track {
+  background: transparent;
+}
+.scrollbar-light::-webkit-scrollbar-thumb {
+  background-color: #d4d4d8;
+  border-radius: 9999px;
+}
+.scrollbar-light::-webkit-scrollbar-thumb:hover {
+  background-color: #c4c4c8;
+}
+
+.dark .scrollbar-light {
+  scrollbar-color: #3f3f46 transparent;
+}
+.dark .scrollbar-light::-webkit-scrollbar-thumb {
+  background-color: #3f3f46;
+}
+.dark .scrollbar-light::-webkit-scrollbar-thumb:hover {
+  background-color: #52525b;
+}
+

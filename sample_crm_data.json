@@ -1,0 +1,37 @@
+[
+    {
+        "Customer Name": "John Doe",
+        "Company Name": "Acme Corp",
+        "Email": "john.doe@example.com",
+        "Last Interaction": "2025-02-20",
+        "Notes": "Interested in premium package, follow up next week."
+    },
+    {
+        "Customer Name": "Jane Smith",
+        "Company Name": "TechStart Inc",
+        "Email": "jane.smith@example.com",
+        "Last Interaction": "2025-02-18",
+        "Notes": "Requested a demo, send follow-up email."
+    },
+    {
+        "Customer Name": "Mike Johnson",
+        "Company Name": "Global Solutions Ltd",
+        "Email": "mike.johnson@example.com",
+        "Last Interaction": "2025-02-25",
+        "Notes": "Negotiating pricing, call in two days."
+    },
+    {
+        "Customer Name": "Emily Davis",
+        "Company Name": "Retail Plus",
+        "Email": "emily.davis@example.com",
+        "Last Interaction": "2025-02-22",
+        "Notes": "Asked about bulk discounts, send proposal."
+    },
+    {
+        "Customer Name": "Robert Brown",
+        "Company Name": "Custom Tech",
+        "Email": "robert.brown@example.com",
+        "Last Interaction": "2025-02-15",
+        "Notes": "Needs custom solution, schedule a meeting."
+    }
+] 

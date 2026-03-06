@@ -1,0 +1,22 @@
+# Exclude large files that cause serialization errors
+
+# Exclude node_modules and build artifacts
+node_modules/
+.next/
+out/
+dist/
+build/
+
+# Exclude large data files
+*.log
+*.csv
+*.json.bak
+
+# Exclude dependencies
+package-lock.json
+yarn.lock
+pnpm-lock.yaml
+
+
+
+

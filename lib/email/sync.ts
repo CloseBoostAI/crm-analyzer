@@ -34,6 +34,66 @@ function extractSenderName(fromRaw: string): string {
   return match ? match[1].trim() : '';
 }
 
+export async function syncConnectionsForUser(userId: string): Promise<{ synced: number; errors: string[] }> {
+  const admin = createAdminClient();
+  const errors: string[] = [];
+  let synced = 0;
+
+  const { data: connections, error: connError } = await admin
+    .from('email_connections')
+    .select('id, user_id, organization_id, provider, email, access_token, refresh_token, token_expires_at')
+    .eq('user_id', userId)
+    .not('access_token', 'is', null);
+
+  if (connError || !connections?.length) {
+    return { synced: 0, errors: connError ? [connError.message] : [] };
+  }
+
+  for (const conn of connections as EmailConnection[]) {
+    try {
+      let accessToken = conn.access_token;
+      const expiresAt = conn.token_expires_at ? new Date(conn.token_expires_at).getTime() : 0;
+      const now = Date.now();
+      const bufferMs = 5 * 60 * 1000;
+
+      if (conn.refresh_token && (expiresAt === 0 || expiresAt < now + bufferMs)) {
+        const refreshed =
+          conn.provider === 'gmail'
+            ? await refreshGmailToken(conn.refresh_token)
+            : await refreshOutlookToken(conn.refresh_token);
+        accessToken = refreshed.access_token;
+        const tokenExpiresAt = refreshed.expires_in
+          ? new Date(Date.now() + refreshed.expires_in * 1000).toISOString()
+          : null;
+        await admin
+          .from('email_connections')
+          .update({
+            access_token: accessToken,
+            token_expires_at: tokenExpiresAt,
+            updated_at: new Date().toISOString(),
+          })
+          .eq('id', conn.id);
+      }
+
+      const orgId = await getUserOrgId(admin, conn.user_id);
+      if (!orgId) {
+        errors.push(`No org for user ${conn.user_id}`);
+        continue;
+      }
+
+      const count =
+        conn.provider === 'gmail'
+          ? await syncGmailConnection(admin, conn, accessToken, orgId)
+          : await syncOutlookConnection(admin, conn, accessToken, orgId);
+      synced += count;
+    } catch (err) {
+      errors.push(`${conn.email} (${conn.provider}): ${(err as Error).message}`);
+    }
+  }
+
+  return { synced, errors };
+}
+
 export async function syncAllConnections(): Promise<{ synced: number; errors: string[] }> {
   const admin = createAdminClient();
   const errors: string[] = [];

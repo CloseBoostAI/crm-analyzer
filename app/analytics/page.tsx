@@ -25,7 +25,7 @@ import {
 import { toast } from "sonner";
 import { type Customer, type CRMLog, type Deal, getDealStageColor, getDealDisplayName, getDealStageLabel, UNIVERSAL_DEAL_STAGES, matchDealStage, computeDealPriorities } from '@/lib/utils';
 import { Slider } from "@/components/ui/slider";
-import { FileText, CheckSquare, Trash2, Pencil, ArrowUp, ArrowDown, ArrowUpDown, Mail, Phone, Calendar, Clock, Send, Sparkles, AlertTriangle, Eye, X, Target, Plus, Users, Inbox, Check, Reply } from "lucide-react";
+import { FileText, CheckSquare, Trash2, Pencil, ArrowUp, ArrowDown, ArrowUpDown, Mail, Phone, Calendar, Clock, Send, Sparkles, AlertTriangle, Eye, X, Target, Plus, Users, Inbox, Check, Reply, RefreshCw } from "lucide-react";
 import { Input } from "@/components/ui/input";
 import { Label } from "@/components/ui/label";
 import {
@@ -473,6 +473,7 @@ export default function AnalyticsPage() {
     receivedAt: string;
   }>>([]);
   const [inboundEmailsLoading, setInboundEmailsLoading] = useState(false);
+  const [inboundEmailSyncing, setInboundEmailSyncing] = useState(false);
   const [inboundEmailFilter, setInboundEmailFilter] = useState<'all' | 'pending' | 'acknowledged' | 'replied'>('all');
   const [generatingReplyForId, setGeneratingReplyForId] = useState<string | null>(null);
   const [generatedReplyForId, setGeneratedReplyForId] = useState<string | null>(null);
@@ -749,31 +750,36 @@ export default function AnalyticsPage() {
     fetchData();
   }, []);
 
+  const syncAndFetchInbound = useCallback(async () => {
+    if (activeTab !== 'inbox') return;
+    setInboundEmailSyncing(true);
+    setInboundEmailsLoading(true);
+    try {
+      await fetch('/api/org/sync-emails', { method: 'POST' });
+      const params = inboundEmailFilter !== 'all' ? `?status=${inboundEmailFilter}` : '';
+      const res = await fetch(`/api/org/inbound-emails${params}`);
+      const data = await res.json();
+      if (data.error) {
+        if (data.error === 'Not in an organization') {
+          setInboundEmails([]);
+        } else {
+          toast.error(data.error);
+        }
+      } else {
+        setInboundEmails(data.emails || []);
+      }
+    } catch {
+      toast.error('Failed to sync or load emails');
+    } finally {
+      setInboundEmailsLoading(false);
+      setInboundEmailSyncing(false);
+    }
+  }, [activeTab, inboundEmailFilter]);
+
   useEffect(() => {
     if (activeTab !== 'inbox') return;
-    const fetchInbound = async () => {
-      setInboundEmailsLoading(true);
-      try {
-        const params = inboundEmailFilter !== 'all' ? `?status=${inboundEmailFilter}` : '';
-        const res = await fetch(`/api/org/inbound-emails${params}`);
-        const data = await res.json();
-        if (data.error) {
-          if (data.error === 'Not in an organization') {
-            setInboundEmails([]);
-          } else {
-            toast.error(data.error);
-          }
-        } else {
-          setInboundEmails(data.emails || []);
-        }
-      } catch {
-        toast.error('Failed to load client emails');
-      } finally {
-        setInboundEmailsLoading(false);
-      }
-    };
-    fetchInbound();
-  }, [activeTab, inboundEmailFilter]);
+    syncAndFetchInbound();
+  }, [activeTab, inboundEmailFilter, syncAndFetchInbound]);
 
   if (loading) {
     return (
@@ -2163,6 +2169,15 @@ OUTPUT: The complete email only — greeting, body (label → Miner line → no-
                     <SelectItem value="replied">Replied</SelectItem>
                   </SelectContent>
                 </Select>
+                <Button
+                  variant="outline"
+                  size="sm"
+                  onClick={() => syncAndFetchInbound()}
+                  disabled={inboundEmailSyncing || inboundEmailsLoading}
+                >
+                  <RefreshCw className={`h-4 w-4 mr-2 ${inboundEmailSyncing ? 'animate-spin' : ''}`} />
+                  {inboundEmailSyncing ? 'Syncing...' : 'Refresh emails'}
+                </Button>
               </div>
               {inboundEmailsLoading ? (
                 <div className="flex items-center justify-center py-12">
@@ -2172,7 +2187,7 @@ OUTPUT: The complete email only — greeting, body (label → Miner line → no-
                 <div className="text-center py-12 text-muted-foreground">
                   <Inbox className="h-12 w-12 mx-auto mb-3 opacity-50" />
                   <p className="font-medium">No client emails yet</p>
-                  <p className="text-sm mt-1">Configure inbound email parsing in Settings to receive emails from clients and prospects.</p>
+                  <p className="text-sm mt-1">Connect your Gmail or Outlook in Settings, then click Refresh emails to sync.</p>
                 </div>
               ) : (
                 <div className="space-y-6">

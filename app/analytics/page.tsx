@@ -181,9 +181,23 @@ function formatSmartDueDate(timestamp: number): string {
   return new Date(timestamp).toLocaleDateString();
 }
 
-function buildSmartTasks(deals: Deal[]): SmartTask[] {
+type InboundEmailForTasks = {
+  senderEmail: string;
+  subject: string;
+  status: string;
+  receivedAt: string;
+};
+
+function buildSmartTasks(deals: Deal[], inboundEmails: InboundEmailForTasks[] = []): SmartTask[] {
   const results: SmartTask[] = [];
   const now = Date.now();
+  const pendingBySender = new Map<string, InboundEmailForTasks[]>();
+  for (const em of inboundEmails) {
+    if (em.status !== 'pending') continue;
+    const sender = em.senderEmail.toLowerCase();
+    if (!pendingBySender.has(sender)) pendingBySender.set(sender, []);
+    pendingBySender.get(sender)!.push(em);
+  }
 
   for (const deal of deals) {
     const stageLower = deal.stage.toLowerCase().replace(/[\s_\-]/g, '');
@@ -267,7 +281,26 @@ function buildSmartTasks(deals: Deal[]): SmartTask[] {
       });
     }
 
-    if (!deal.email) {
+    if (deal.email) {
+      const pendingFromContact = pendingBySender.get(deal.email.toLowerCase());
+      if (pendingFromContact?.length) {
+        const recent = pendingFromContact.filter((em) => {
+          const received = new Date(em.receivedAt).getTime();
+          return now - received < 48 * 60 * 60 * 1000;
+        });
+        if (recent.length > 0) {
+          const latest = recent.sort((a, b) => new Date(b.receivedAt).getTime() - new Date(a.receivedAt).getTime())[0];
+          results.push({
+            id: `reply_${deal.id}`, category: 'email',
+            title: `Reply to ${deal.contact} — they emailed you`,
+            description: `${deal.contact} emailed about "${(latest.subject || '').slice(0, 60)}${(latest.subject || '').length > 60 ? '...' : ''}". Respond to keep the conversation moving.`,
+            reason: 'Unreplied email from deal contact',
+            priority: isHighValue ? 'HIGH' : 'MEDIUM',
+            dueDate: now, ...base,
+          });
+        }
+      }
+    } else {
       results.push({
         id: `noemail_${deal.id}`, category: 'update',
         title: `Get email address for ${deal.contact}`,
@@ -441,6 +474,9 @@ export default function AnalyticsPage() {
   }>>([]);
   const [inboundEmailsLoading, setInboundEmailsLoading] = useState(false);
   const [inboundEmailFilter, setInboundEmailFilter] = useState<'all' | 'pending' | 'acknowledged' | 'replied'>('all');
+  const [generatingReplyForId, setGeneratingReplyForId] = useState<string | null>(null);
+  const [generatedReplyForId, setGeneratedReplyForId] = useState<string | null>(null);
+  const [generatedReplyText, setGeneratedReplyText] = useState('');
 
   const filteredDeals = useMemo(() => {
     if (!memberFilter || !currentUserId) return deals;
@@ -466,7 +502,18 @@ export default function AnalyticsPage() {
     return m?.fullName || m?.email || 'Unknown';
   }, [currentUserId, orgMembers]);
 
-  const smartTasks = useMemo(() => buildSmartTasks(filteredDeals), [filteredDeals]);
+  const smartTasks = useMemo(
+    () => buildSmartTasks(
+      filteredDeals,
+      inboundEmails.map((e) => ({
+        senderEmail: e.senderEmail,
+        subject: e.subject,
+        status: e.status,
+        receivedAt: e.receivedAt,
+      }))
+    ),
+    [filteredDeals, inboundEmails]
+  );
   const visibleSmartTasks = useMemo(() => {
     let filtered = smartTasks.filter(t => !dismissedTaskIds.has(t.id));
     if (taskCategoryFilter !== 'all') filtered = filtered.filter(t => t.category === taskCategoryFilter);
@@ -587,11 +634,12 @@ export default function AnalyticsPage() {
         const { data: { user } } = await supabase.auth.getUser();
         const userId = user?.id ?? null;
 
-        const [orgRes, customersData, logsData, dismissedIds] = await Promise.all([
+        const [orgRes, customersData, logsData, dismissedIds, inboundRes] = await Promise.all([
           fetch('/api/org'),
           loadCustomers(),
           loadLogs(),
           loadDismissedRecommendations(),
+          fetch('/api/org/inbound-emails?status=pending&limit=100'),
         ]);
         const orgData = await orgRes.json();
         const role = orgData?.membership?.role;
@@ -671,6 +719,10 @@ export default function AnalyticsPage() {
         setCustomers(customersData);
         setLogs(logsData);
         setDismissedTaskIds(new Set(dismissedIds));
+        try {
+          const inboundJson = await inboundRes.json();
+          if (inboundJson.emails) setInboundEmails(inboundJson.emails);
+        } catch { /* ignore */ }
 
         // One-time migration: if Supabase was empty but localStorage had data, persist it
         if (typeof window !== 'undefined' && dismissedIds.length === 0) {
@@ -2209,8 +2261,65 @@ OUTPUT: The complete email only — greeting, body (label → Miner line → no-
                               Mark replied
                             </Button>
                           )}
+                          <Button
+                            variant="outline"
+                            size="sm"
+                            onClick={async () => {
+                              setGeneratingReplyForId(email.id);
+                              setGeneratedReplyForId(null);
+                              setGeneratedReplyText('');
+                              try {
+                                const res = await fetch('/api/ai/generate-email-reply', {
+                                  method: 'POST',
+                                  headers: { 'Content-Type': 'application/json' },
+                                  body: JSON.stringify({ emailId: email.id }),
+                                });
+                                const data = await res.json();
+                                if (data.error) throw new Error(data.error);
+                                setGeneratedReplyForId(email.id);
+                                setGeneratedReplyText(data.reply || '');
+                              } catch (e: any) {
+                                toast.error(e.message || 'Failed to generate reply');
+                              } finally {
+                                setGeneratingReplyForId(null);
+                              }
+                            }}
+                            disabled={generatingReplyForId === email.id}
+                          >
+                            {generatingReplyForId === email.id ? (
+                              <span className="animate-pulse">Generating...</span>
+                            ) : (
+                              <>
+                                <Sparkles className="h-4 w-4 mr-1" />
+                                Generate reply
+                              </>
+                            )}
+                          </Button>
                         </div>
                       </div>
+                      {generatedReplyForId === email.id && generatedReplyText && (
+                        <div className="mt-3 pt-3 border-t">
+                          <p className="text-sm font-medium mb-2">AI-generated reply</p>
+                          <div className="rounded-lg border p-4 bg-muted/50">
+                            <pre className="whitespace-pre-wrap font-sans text-sm">{generatedReplyText}</pre>
+                          </div>
+                          <div className="flex gap-2 mt-2">
+                            <Button
+                              size="sm"
+                              variant="outline"
+                              onClick={() => {
+                                navigator.clipboard.writeText(generatedReplyText);
+                                toast.success('Reply copied to clipboard');
+                              }}
+                            >
+                              Copy
+                            </Button>
+                            <Button size="sm" variant="ghost" onClick={() => { setGeneratedReplyForId(null); setGeneratedReplyText(''); }}>
+                              Dismiss
+                            </Button>
+                          </div>
+                        </div>
+                      )}
                       {(email.bodyText || email.bodyHtml) && (
                         <div className="mt-2 pt-2 border-t text-sm text-muted-foreground line-clamp-3">
                           {email.bodyText?.trim() || (email.bodyHtml ? email.bodyHtml.replace(/<[^>]+>/g, ' ').replace(/\s+/g, ' ').trim().slice(0, 350) : '')}

@@ -1,0 +1,88 @@
+import { NextRequest, NextResponse } from 'next/server';
+import { createClient } from '@/lib/supabase/server';
+
+/**
+ * Generate an AI reply to an email, using the email (and thread) as context.
+ * POST body: { emailId: string }
+ */
+export async function POST(request: NextRequest) {
+  const apiKey = process.env.GROQ_API_KEY?.trim();
+  if (!apiKey) {
+    return NextResponse.json({ error: 'API key not configured' }, { status: 500 });
+  }
+
+  const supabase = await createClient();
+  const { data: { user } } = await supabase.auth.getUser();
+  if (!user) {
+    return NextResponse.json({ error: 'Unauthorized' }, { status: 401 });
+  }
+
+  const body = await request.json();
+  const { emailId } = body;
+  if (!emailId) {
+    return NextResponse.json({ error: 'emailId is required' }, { status: 400 });
+  }
+
+  const { data: email, error: emailError } = await supabase
+    .from('inbound_emails')
+    .select('id, sender_email, sender_name, subject, body_text, body_html, thread_id, received_at')
+    .eq('id', emailId)
+    .single();
+
+  if (emailError || !email) {
+    return NextResponse.json({ error: 'Email not found' }, { status: 404 });
+  }
+
+  let threadEmails: typeof email[] = [email];
+  if (email.thread_id) {
+    const { data: thread } = await supabase
+      .from('inbound_emails')
+      .select('id, sender_email, sender_name, subject, body_text, received_at')
+      .eq('thread_id', email.thread_id)
+      .order('received_at', { ascending: true });
+    if (thread?.length) threadEmails = thread;
+  }
+
+  const threadContext = threadEmails
+    .map(
+      (e) =>
+        `From: ${e.sender_name || e.sender_email} <${e.sender_email}>\nDate: ${e.received_at}\nSubject: ${e.subject || '(no subject)'}\n\n${(e.body_text || e.body_html || '').slice(0, 2000)}`
+    )
+    .join('\n\n---\n\n');
+
+  const systemPrompt = `You are a professional sales rep writing a reply to an email. Write a concise, helpful response that addresses the sender's message. Match the tone of the conversation. Do not include email headers (From, To, Subject) - only the body of your reply.`;
+
+  const userPrompt = `Here is the email thread to reply to:\n\n${threadContext}\n\nWrite a reply to the most recent message:`;
+
+  try {
+    const response = await fetch('https://api.groq.com/openai/v1/chat/completions', {
+      method: 'POST',
+      headers: {
+        'Content-Type': 'application/json',
+        Authorization: `Bearer ${apiKey}`,
+      },
+      body: JSON.stringify({
+        model: 'llama-3.1-8b-instant',
+        max_tokens: 800,
+        temperature: 0.7,
+        messages: [
+          { role: 'system', content: systemPrompt },
+          { role: 'user', content: userPrompt },
+        ],
+      }),
+    });
+
+    if (!response.ok) {
+      const errorText = await response.text();
+      console.error('Groq API error:', errorText);
+      return NextResponse.json({ error: 'AI service error' }, { status: 500 });
+    }
+
+    const data = await response.json();
+    const reply = data.choices?.[0]?.message?.content?.trim() || '';
+    return NextResponse.json({ reply });
+  } catch (error) {
+    console.error('AI generate-email-reply error:', error);
+    return NextResponse.json({ error: 'Internal server error' }, { status: 500 });
+  }
+}

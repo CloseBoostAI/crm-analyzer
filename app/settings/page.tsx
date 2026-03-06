@@ -43,6 +43,7 @@ import {
   UserPlus,
   Trash2,
   BarChart2,
+  Link2,
 } from "lucide-react"
 import { cn, getDealDisplayName, UNIVERSAL_DEAL_STAGES, DEFAULT_DEAL_STAGE_KEYS, getDealStageColor } from "@/lib/utils"
 import {
@@ -74,6 +75,7 @@ const SETTINGS_SECTIONS = [
   { id: "statistics", label: "Statistics", icon: BarChart2 },
   { id: "profile", label: "Profile", icon: Building2 },
   { id: "team", label: "Team", icon: Users },
+  { id: "email-connections", label: "Connected Email", icon: Link2 },
   { id: "email", label: "Email Generator", icon: Mail },
   { id: "tasks", label: "Tasks", icon: ListTodo },
   { id: "account", label: "Account", icon: User },
@@ -614,6 +616,118 @@ function TeamSection() {
               </div>
             ))}
           </div>
+        </div>
+      </CardContent>
+    </Card>
+  )
+}
+
+function EmailConnectionsSection() {
+  const searchParams = useSearchParams()
+  const [connections, setConnections] = useState<{ id: string; provider: string; email: string }[]>([])
+  const [loading, setLoading] = useState(true)
+  const [disconnecting, setDisconnecting] = useState<string | null>(null)
+
+  useEffect(() => {
+    fetch("/api/auth/email/connections")
+      .then((r) => r.json())
+      .then((data) => {
+        if (data.connections) setConnections(data.connections)
+      })
+      .catch(() => toast.error("Failed to load connections"))
+      .finally(() => setLoading(false))
+  }, [])
+
+  useEffect(() => {
+    if (searchParams.get("email") === "connected") {
+      toast.success("Email connected successfully")
+      fetch("/api/auth/email/connections")
+        .then((r) => r.json())
+        .then((data) => {
+          if (data.connections) setConnections(data.connections)
+        })
+    }
+  }, [searchParams])
+
+  const handleConnect = (provider: "gmail" | "outlook") => {
+    window.location.href = `/api/auth/email/connect?provider=${provider}`
+  }
+
+  const handleDisconnect = async (id: string) => {
+    if (!confirm("Disconnect this email? CloseBoost will no longer be able to read or sync emails from this account.")) return
+    setDisconnecting(id)
+    try {
+      const res = await fetch(`/api/auth/email/connections/${id}`, { method: "DELETE" })
+      if (!res.ok) throw new Error((await res.json()).error)
+      setConnections((prev) => prev.filter((c) => c.id !== id))
+      toast.success("Email disconnected")
+    } catch (e: any) {
+      toast.error(e.message)
+    } finally {
+      setDisconnecting(null)
+    }
+  }
+
+  if (loading) {
+    return (
+      <Card>
+        <CardContent className="py-12">
+          <div className="flex justify-center">
+            <div className="animate-spin h-8 w-8 border-4 border-primary border-t-transparent rounded-full" />
+          </div>
+        </CardContent>
+      </Card>
+    )
+  }
+
+  return (
+    <Card>
+      <CardHeader>
+        <CardTitle>Connected Email</CardTitle>
+        <CardDescription>
+          Connect your Gmail or Outlook so CloseBoost can see your emails, generate responses, recommend tasks, and fill deal activity.
+        </CardDescription>
+      </CardHeader>
+      <CardContent className="space-y-6">
+        <div className="rounded-lg border p-4 space-y-4">
+          <h4 className="font-medium text-sm">Your connections</h4>
+          {connections.length === 0 ? (
+            <p className="text-sm text-muted-foreground">
+              No email connected. Connect Gmail or Outlook to enable email features.
+            </p>
+          ) : (
+            <div className="space-y-3">
+              {connections.map((c) => (
+                <div
+                  key={c.id}
+                  className="flex items-center justify-between rounded-lg border p-3"
+                >
+                  <div>
+                    <p className="font-medium text-sm capitalize">{c.provider}</p>
+                    <p className="text-sm text-muted-foreground">{c.email}</p>
+                  </div>
+                  <Button
+                    variant="ghost"
+                    size="sm"
+                    className="text-destructive hover:text-destructive"
+                    onClick={() => handleDisconnect(c.id)}
+                    disabled={disconnecting === c.id}
+                  >
+                    {disconnecting === c.id ? "Disconnecting..." : "Disconnect"}
+                  </Button>
+                </div>
+              ))}
+            </div>
+          )}
+        </div>
+        <div className="flex gap-2">
+          <Button onClick={() => handleConnect("gmail")}>
+            <Mail className="h-4 w-4 mr-2" />
+            Connect Gmail
+          </Button>
+          <Button variant="outline" onClick={() => handleConnect("outlook")}>
+            Connect Outlook
+          </Button>
         </div>
       </CardContent>
     </Card>
@@ -1176,6 +1290,9 @@ export default function SettingsPage() {
 
           {/* ── Team ── */}
           {activeSection === "team" && <TeamSection />}
+
+          {/* ── Email Connections ── */}
+          {activeSection === "email-connections" && <EmailConnectionsSection />}
 
           {/* ── Email Generator ── */}
           {activeSection === "email" && (

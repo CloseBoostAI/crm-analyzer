@@ -93,11 +93,13 @@ create trigger on_auth_user_created
 
 When you're ready to enable email confirmation in Supabase, follow these steps so invite links still work in one click (no double-clicking).
 
-### Step 1: Add redirect URL in Supabase
+### Step 1: Add redirect URLs in Supabase
 
 1. Go to **Supabase Dashboard → Authentication → URL Configuration**
 2. Under **Redirect URLs**, add:
+   - Production: `https://yourdomain.com/auth/callback`
    - Production: `https://yourdomain.com/invite/accept`
+   - Local dev: `http://localhost:3000/auth/callback`
    - Local dev: `http://localhost:3000/invite/accept`
 
 Supabase only redirects to URLs in this list. Without this, users who confirm via email won't land on the right page to join the org.
@@ -122,7 +124,9 @@ The signup page already sets `emailRedirectTo` to `/invite/accept?token=...` whe
 
 ### Quick checklist when enabling email confirmation
 
+- [ ] Add `https://yourdomain.com/auth/callback` to Supabase Redirect URLs
 - [ ] Add `https://yourdomain.com/invite/accept` to Supabase Redirect URLs
+- [ ] Add `http://localhost:3000/auth/callback` for local dev
 - [ ] Add `http://localhost:3000/invite/accept` for local dev
 - [ ] Enable "Confirm email" in Email provider settings
 - [ ] (Optional) Customize the confirmation email template in Supabase

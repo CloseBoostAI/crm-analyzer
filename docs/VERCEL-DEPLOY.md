@@ -82,6 +82,7 @@ In **Supabase Dashboard → Authentication → URL Configuration**:
 2. Under **Redirect URLs**, add:
    - `https://your-app.vercel.app`
    - `https://your-app.vercel.app/**`
+   - `https://your-app.vercel.app/auth/callback` (for email confirmation)
    - `https://your-app.vercel.app/invite/accept`
 
 Replace `your-app.vercel.app` with your actual Vercel domain.

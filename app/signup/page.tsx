@@ -67,10 +67,10 @@ export default function SignupPage() {
       email,
       password,
       options: {
-        // When invite: after email confirmation, Supabase redirects here so they join the org in one click
+        // After email confirmation, Supabase redirects to callback which exchanges tokens and redirects
         emailRedirectTo: inviteToken
-          ? `${window.location.origin}/invite/accept?token=${encodeURIComponent(inviteToken)}`
-          : `${window.location.origin}/analytics`,
+          ? `${window.location.origin}/auth/callback?next=${encodeURIComponent(`/invite/accept?token=${inviteToken}`)}`
+          : `${window.location.origin}/auth/callback?next=/analytics`,
         data: { full_name: trimmedName },
       },
     });

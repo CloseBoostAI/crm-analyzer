@@ -376,7 +376,7 @@ function AccountSection() {
 }
 
 function TeamSection() {
-  const [org, setOrg] = useState<{ name: string; memberCount: number; seatLimit: number; inboundEmail?: string | null } | null>(null)
+  const [org, setOrg] = useState<{ id?: string; name: string; memberCount: number; seatLimit: number; inboundEmail?: string | null } | null>(null)
   const [membership, setMembership] = useState<{ role: string } | null>(null)
   const [members, setMembers] = useState<{ id: string; user_id: string; role: string; email: string | null; fullName: string | null }[]>([])
   const [inviteEmail, setInviteEmail] = useState("")
@@ -403,6 +403,7 @@ function TeamSection() {
       const orgData = orgRes?.org || membersRes?.org
       if (orgData) {
         setOrg({
+          id: orgData.id,
           name: orgData.name ?? 'Organization',
           memberCount: orgData.memberCount ?? membersRes?.members?.length ?? 0,
           seatLimit: orgData.seat_limit ?? 1,
@@ -451,7 +452,10 @@ function TeamSection() {
   const handleRemoveMember = async (userId: string) => {
     if (!confirm("Remove this member from the team?")) return
     try {
-      const res = await fetch(`/api/org/members/${userId}`, { method: "DELETE" })
+      const url = org?.id
+        ? `/api/org/members/${userId}?orgId=${encodeURIComponent(org.id)}`
+        : `/api/org/members/${userId}`
+      const res = await fetch(url, { method: "DELETE" })
       if (!res.ok) throw new Error((await res.json()).error)
       toast.success("Member removed")
       setMembers((prev) => prev.filter((m) => m.user_id !== userId))

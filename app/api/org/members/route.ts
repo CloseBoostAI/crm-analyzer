@@ -13,6 +13,7 @@ export async function GET() {
     .from('organization_members')
     .select('organization_id, role')
     .eq('user_id', user.id)
+    .order('role', { ascending: false })
     .limit(1)
     .single();
 

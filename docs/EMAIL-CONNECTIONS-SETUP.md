@@ -74,7 +74,13 @@ curl -H "Authorization: Bearer YOUR_CRON_SECRET" https://yourdomain.com/api/cron
 
 ---
 
-## 6. Redirect URLs
+## 6. DKIM for Better Deliverability
+
+If emails sent via Outlook to Gmail/Yahoo are rejected or go to spam, enable DKIM for your domain. See **[DKIM-SETUP-OUTLOOK.md](./DKIM-SETUP-OUTLOOK.md)** for step-by-step instructions.
+
+---
+
+## 7. Redirect URLs
 
 Add these to your OAuth provider configs:
 

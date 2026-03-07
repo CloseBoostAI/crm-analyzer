@@ -15,8 +15,7 @@ import {
   refreshOutlookToken,
 } from '@/lib/email/outlook';
 
-const SYNC_LOOKBACK_DAYS = 7;
-const MAX_MESSAGES_PER_CONNECTION = 100;
+const MAX_MESSAGES_PER_CONNECTION = 30;
 
 interface EmailConnection {
   id: string;

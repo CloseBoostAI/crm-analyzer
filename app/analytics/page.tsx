@@ -750,36 +750,45 @@ export default function AnalyticsPage() {
     fetchData();
   }, []);
 
+  const fetchInboundOnly = useCallback(async () => {
+    const params = inboundEmailFilter !== 'all' ? `?status=${inboundEmailFilter}` : '';
+    const res = await fetch(`/api/org/inbound-emails${params}`);
+    const data = await res.json();
+    if (data.error) {
+      if (data.error === 'Not in an organization') setInboundEmails([]);
+      else toast.error(data.error);
+    } else {
+      setInboundEmails(data.emails || []);
+    }
+  }, [inboundEmailFilter]);
+
   const syncAndFetchInbound = useCallback(async () => {
     if (activeTab !== 'inbox') return;
     setInboundEmailSyncing(true);
-    setInboundEmailsLoading(true);
     try {
       await fetch('/api/org/sync-emails', { method: 'POST' });
-      const params = inboundEmailFilter !== 'all' ? `?status=${inboundEmailFilter}` : '';
-      const res = await fetch(`/api/org/inbound-emails${params}`);
-      const data = await res.json();
-      if (data.error) {
-        if (data.error === 'Not in an organization') {
-          setInboundEmails([]);
-        } else {
-          toast.error(data.error);
-        }
-      } else {
-        setInboundEmails(data.emails || []);
-      }
+      await fetchInboundOnly();
     } catch {
       toast.error('Failed to sync or load emails');
     } finally {
-      setInboundEmailsLoading(false);
       setInboundEmailSyncing(false);
     }
-  }, [activeTab, inboundEmailFilter]);
+  }, [activeTab, inboundEmailFilter, fetchInboundOnly]);
 
   useEffect(() => {
     if (activeTab !== 'inbox') return;
-    syncAndFetchInbound();
-  }, [activeTab, inboundEmailFilter, syncAndFetchInbound]);
+    setInboundEmailsLoading(true);
+    fetchInboundOnly()
+      .catch(() => toast.error('Failed to load emails'))
+      .finally(() => setInboundEmailsLoading(false))
+      .then(() => {
+        setInboundEmailSyncing(true);
+        fetch('/api/org/sync-emails', { method: 'POST' })
+          .then(() => fetchInboundOnly())
+          .catch(() => toast.error('Sync failed'))
+          .finally(() => setInboundEmailSyncing(false));
+      });
+  }, [activeTab, inboundEmailFilter, fetchInboundOnly]);
 
   if (loading) {
     return (

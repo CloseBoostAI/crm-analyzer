@@ -151,12 +151,32 @@ function extractBody(payload: GmailMessage['payload']): { text: string; html: st
   return { text, html };
 }
 
+export async function listAllGmailMessageIds(
+  accessToken: string,
+  maxTotal = 100
+): Promise<string[]> {
+  const ids: string[] = [];
+  let pageToken: string | undefined;
+  while (ids.length < maxTotal) {
+    const list = await listGmailMessages(
+      accessToken,
+      Math.min(100, maxTotal - ids.length),
+      pageToken
+    );
+    const messages = list.messages || [];
+    for (const m of messages) ids.push(m.id);
+    if (!list.nextPageToken || messages.length === 0) break;
+    pageToken = list.nextPageToken;
+  }
+  return ids;
+}
+
 export async function listGmailMessages(
   accessToken: string,
   maxResults = 50,
   pageToken?: string
 ): Promise<GmailMessageList> {
-  const params = new URLSearchParams({ maxResults: String(maxResults) });
+  const params = new URLSearchParams({ maxResults: String(maxResults), labelIds: 'INBOX' });
   if (pageToken) params.set('pageToken', pageToken);
   const url = `${GMAIL_API_BASE}/messages?${params.toString()}`;
   const res = await fetch(url, {

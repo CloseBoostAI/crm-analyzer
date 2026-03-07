@@ -5,6 +5,7 @@
 import { createAdminClient } from '@/lib/supabase/admin';
 import {
   listGmailMessages,
+  listAllGmailMessageIds,
   getGmailMessage,
   parseGmailMessage,
   refreshGmailToken,
@@ -171,6 +172,18 @@ async function syncGmailConnection(
   accessToken: string,
   orgId: string
 ): Promise<number> {
+  const gmailIds = await listAllGmailMessageIds(accessToken, 100);
+  if (gmailIds.length > 0) {
+    const quoted = gmailIds.map((id) => `"${String(id).replace(/\\/g, '\\\\').replace(/"/g, '\\"')}"`);
+    await admin
+      .from('inbound_emails')
+      .delete()
+      .eq('connection_id', conn.id)
+      .not('message_id', 'in', `(${quoted.join(',')})`);
+  } else {
+    await admin.from('inbound_emails').delete().eq('connection_id', conn.id);
+  }
+
   let count = 0;
   let pageToken: string | undefined;
 
@@ -212,11 +225,24 @@ async function syncOutlookConnection(
   accessToken: string,
   orgId: string
 ): Promise<number> {
-  const list = await listOutlookMessages(accessToken, MAX_MESSAGES_PER_CONNECTION);
+  const list = await listOutlookMessages(accessToken, 100);
   const messages = list.value || [];
+  const outlookIds = messages.map((m) => m.id).filter(Boolean);
+  if (outlookIds.length > 0) {
+    const quoted = outlookIds.map((id) => `"${String(id).replace(/\\/g, '\\\\').replace(/"/g, '\\"')}"`);
+    await admin
+      .from('inbound_emails')
+      .delete()
+      .eq('connection_id', conn.id)
+      .not('message_id', 'in', `(${quoted.join(',')})`);
+  } else {
+    await admin.from('inbound_emails').delete().eq('connection_id', conn.id);
+  }
+
+  const messagesToSync = messages.slice(0, MAX_MESSAGES_PER_CONNECTION);
   let count = 0;
 
-  for (const m of messages) {
+  for (const m of messagesToSync) {
     try {
       const parsed = parseOutlookMessage(m);
       const inserted = await insertSyncedEmail(admin, {

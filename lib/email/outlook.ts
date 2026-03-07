@@ -5,7 +5,7 @@
 const MS_AUTH_URL = 'https://login.microsoftonline.com/common/oauth2/v2.0/authorize';
 const MS_TOKEN_URL = 'https://login.microsoftonline.com/common/oauth2/v2.0/token';
 const MS_GRAPH_ME = 'https://graph.microsoft.com/v1.0/me';
-const MS_GRAPH_MAIL = 'https://graph.microsoft.com/v1.0/me/messages';
+const MS_GRAPH_INBOX = 'https://graph.microsoft.com/v1.0/me/mailFolders/inbox/messages';
 
 export const OUTLOOK_SCOPES = [
   'Mail.Read',
@@ -98,7 +98,7 @@ export async function listOutlookMessages(
   accessToken: string,
   top = 50
 ): Promise<OutlookMessageList> {
-  const url = `${MS_GRAPH_MAIL}?$top=${top}&$orderby=receivedDateTime desc&$select=id,conversationId,from,toRecipients,subject,bodyPreview,body,receivedDateTime`;
+  const url = `${MS_GRAPH_INBOX}?$top=${top}&$orderby=receivedDateTime desc&$select=id,conversationId,from,toRecipients,subject,bodyPreview,body,receivedDateTime`;
   const res = await fetch(url, {
     headers: { Authorization: `Bearer ${accessToken}` },
   });

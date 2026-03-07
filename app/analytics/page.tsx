@@ -762,32 +762,24 @@ export default function AnalyticsPage() {
     }
   }, [inboundEmailFilter]);
 
-  const syncAndFetchInbound = useCallback(async () => {
+  const refreshInbound = useCallback(async () => {
     if (activeTab !== 'inbox') return;
     setInboundEmailSyncing(true);
     try {
-      await fetch('/api/org/sync-emails', { method: 'POST' });
       await fetchInboundOnly();
     } catch {
-      toast.error('Failed to sync or load emails');
+      toast.error('Failed to load emails');
     } finally {
       setInboundEmailSyncing(false);
     }
-  }, [activeTab, inboundEmailFilter, fetchInboundOnly]);
+  }, [activeTab, fetchInboundOnly]);
 
   useEffect(() => {
     if (activeTab !== 'inbox') return;
     setInboundEmailsLoading(true);
     fetchInboundOnly()
       .catch(() => toast.error('Failed to load emails'))
-      .finally(() => setInboundEmailsLoading(false))
-      .then(() => {
-        setInboundEmailSyncing(true);
-        fetch('/api/org/sync-emails', { method: 'POST' })
-          .then(() => fetchInboundOnly())
-          .catch(() => toast.error('Sync failed'))
-          .finally(() => setInboundEmailSyncing(false));
-      });
+      .finally(() => setInboundEmailsLoading(false));
   }, [activeTab, inboundEmailFilter, fetchInboundOnly]);
 
   if (loading) {
@@ -2181,11 +2173,11 @@ OUTPUT: The complete email only — greeting, body (label → Miner line → no-
                 <Button
                   variant="outline"
                   size="sm"
-                  onClick={() => syncAndFetchInbound()}
+                  onClick={() => refreshInbound()}
                   disabled={inboundEmailSyncing || inboundEmailsLoading}
                 >
                   <RefreshCw className={`h-4 w-4 mr-2 ${inboundEmailSyncing ? 'animate-spin' : ''}`} />
-                  {inboundEmailSyncing ? 'Syncing...' : 'Refresh emails'}
+                  {inboundEmailSyncing ? 'Loading...' : 'Refresh emails'}
                 </Button>
               </div>
               {inboundEmailsLoading ? (
@@ -2196,7 +2188,7 @@ OUTPUT: The complete email only — greeting, body (label → Miner line → no-
                 <div className="text-center py-12 text-muted-foreground">
                   <Inbox className="h-12 w-12 mx-auto mb-3 opacity-50" />
                   <p className="font-medium">No client emails yet</p>
-                  <p className="text-sm mt-1">Connect your Gmail or Outlook in Settings, then click Refresh emails to sync.</p>
+                  <p className="text-sm mt-1">Connect your Gmail or Outlook in Settings, then click Refresh to load emails.</p>
                 </div>
               ) : (
                 <div className="space-y-6">

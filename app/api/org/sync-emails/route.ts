@@ -1,10 +1,9 @@
 import { createClient } from '@/lib/supabase/server';
 import { NextResponse } from 'next/server';
-import { syncConnectionsForUser } from '@/lib/email/sync';
 
 /**
- * Sync emails from the current user's connected Gmail/Outlook.
- * Call this when the user opens Client Inbox or clicks Refresh.
+ * No-op: Emails are now fetched on demand when opening Client Inbox.
+ * Kept for backward compatibility; returns success without syncing.
  */
 export async function POST() {
   const supabase = await createClient();
@@ -14,18 +13,5 @@ export async function POST() {
     return NextResponse.json({ error: 'Unauthorized' }, { status: 401 });
   }
 
-  try {
-    const { synced, errors } = await syncConnectionsForUser(user.id);
-    return NextResponse.json({
-      ok: true,
-      synced,
-      errors: errors.length > 0 ? errors : undefined,
-    });
-  } catch (err) {
-    console.error('[sync-emails] Error:', err);
-    return NextResponse.json(
-      { error: (err as Error).message },
-      { status: 500 }
-    );
-  }
+  return NextResponse.json({ ok: true, synced: 0 });
 }

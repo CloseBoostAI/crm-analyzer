@@ -1,9 +1,11 @@
 import { NextRequest, NextResponse } from 'next/server';
 import { createClient } from '@/lib/supabase/server';
+import { parseOauthEmailId, fetchEmailForReply } from '@/lib/email/fetch';
 
 /**
  * Generate an AI reply to an email, using the email (and thread) as context.
  * POST body: { emailId: string }
+ * emailId can be: UUID (webhook email) or "connectionId:messageId" (OAuth email)
  */
 export async function POST(request: NextRequest) {
   const apiKey = process.env.GROQ_API_KEY?.trim();
@@ -23,32 +25,66 @@ export async function POST(request: NextRequest) {
     return NextResponse.json({ error: 'emailId is required' }, { status: 400 });
   }
 
-  const { data: email, error: emailError } = await supabase
-    .from('inbound_emails')
-    .select('id, sender_email, sender_name, subject, body_text, body_html, thread_id, received_at')
-    .eq('id', emailId)
-    .single();
+  let threadContext: string;
 
-  if (emailError || !email) {
-    return NextResponse.json({ error: 'Email not found' }, { status: 404 });
-  }
+  const oauth = parseOauthEmailId(emailId);
+  if (oauth) {
+    const { data: myMembership } = await supabase
+      .from('organization_members')
+      .select('organization_id')
+      .eq('user_id', user.id)
+      .limit(1)
+      .single();
 
-  let threadEmails: typeof email[] = [email];
-  if (email.thread_id) {
-    const { data: thread } = await supabase
+    if (!myMembership) {
+      return NextResponse.json({ error: 'Not in an organization' }, { status: 403 });
+    }
+
+    const emailData = await fetchEmailForReply(
+      oauth.connectionId,
+      oauth.messageId,
+      user.id,
+      myMembership.organization_id
+    );
+
+    if (!emailData) {
+      return NextResponse.json({ error: 'Email not found' }, { status: 404 });
+    }
+
+    threadContext = emailData.threadEmails
+      .map(
+        (e) =>
+          `From: ${e.senderName || e.senderEmail} <${e.senderEmail}>\nDate: ${e.receivedAt}\nSubject: ${e.subject || '(no subject)'}\n\n${(e.bodyText || '').slice(0, 2000)}`
+      )
+      .join('\n\n---\n\n');
+  } else {
+    const { data: email, error: emailError } = await supabase
       .from('inbound_emails')
-      .select('id, sender_email, sender_name, subject, body_text, received_at')
-      .eq('thread_id', email.thread_id)
-      .order('received_at', { ascending: true });
-    if (thread?.length) threadEmails = thread;
-  }
+      .select('id, sender_email, sender_name, subject, body_text, body_html, thread_id, received_at')
+      .eq('id', emailId)
+      .single();
 
-  const threadContext = threadEmails
-    .map(
-      (e) =>
-        `From: ${e.sender_name || e.sender_email} <${e.sender_email}>\nDate: ${e.received_at}\nSubject: ${e.subject || '(no subject)'}\n\n${(e.body_text || e.body_html || '').slice(0, 2000)}`
-    )
-    .join('\n\n---\n\n');
+    if (emailError || !email) {
+      return NextResponse.json({ error: 'Email not found' }, { status: 404 });
+    }
+
+    let threadEmails: typeof email[] = [email];
+    if (email.thread_id) {
+      const { data: thread } = await supabase
+        .from('inbound_emails')
+        .select('id, sender_email, sender_name, subject, body_text, received_at')
+        .eq('thread_id', email.thread_id)
+        .order('received_at', { ascending: true });
+      if (thread?.length) threadEmails = thread;
+    }
+
+    threadContext = threadEmails
+      .map(
+        (e) =>
+          `From: ${e.sender_name || e.sender_email} <${e.sender_email}>\nDate: ${e.received_at}\nSubject: ${e.subject || '(no subject)'}\n\n${(e.body_text || e.body_html || '').slice(0, 2000)}`
+      )
+      .join('\n\n---\n\n');
+  }
 
   const systemPrompt = `You are a professional sales rep writing a reply to an email. Write a concise, helpful response that addresses the sender's message. Match the tone of the conversation. Do not include email headers (From, To, Subject) - only the body of your reply.`;
 

@@ -20,6 +20,7 @@ Run these in **Supabase Dashboard → SQL Editor** in this exact order:
 | 8 | `supabase-migrations-org-admin-delete-members.sql` | Allow admins (in addition to owners) to remove members |
 | 9 | `supabase-migrations-email-connections.sql` | OAuth email connections (Gmail, Outlook) |
 | 10 | `supabase-migrations-inbound-emails-oauth.sql` | Extend inbound_emails for OAuth sync (user_id, connection_id, message_id, thread_id) |
+| 11 | `supabase-migrations-email-status.sql` | Minimal storage for OAuth email status (acknowledged/replied) |
 
 ---
 

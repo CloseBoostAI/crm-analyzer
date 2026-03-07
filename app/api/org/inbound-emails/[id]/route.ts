@@ -1,5 +1,6 @@
 import { createClient } from '@/lib/supabase/server';
 import { NextResponse } from 'next/server';
+import { parseOauthEmailId } from '@/lib/email/fetch';
 
 export async function PATCH(
   request: Request,
@@ -31,6 +32,39 @@ export async function PATCH(
     return NextResponse.json({ error: 'Invalid status' }, { status: 400 });
   }
 
+  // OAuth email: id is "connectionId:messageId"
+  const oauth = parseOauthEmailId(id);
+  if (oauth) {
+    const { data: conn } = await supabase
+      .from('email_connections')
+      .select('id, organization_id')
+      .eq('id', oauth.connectionId)
+      .single();
+
+    if (!conn || conn.organization_id !== myMembership.organization_id) {
+      return NextResponse.json({ error: 'Not found' }, { status: 404 });
+    }
+
+    const { error } = await supabase
+      .from('email_status')
+      .upsert(
+        {
+          connection_id: oauth.connectionId,
+          message_id: oauth.messageId,
+          status,
+          organization_id: myMembership.organization_id,
+          updated_at: new Date().toISOString(),
+        },
+        { onConflict: 'connection_id,message_id' }
+      );
+
+    if (error) {
+      return NextResponse.json({ error: error.message }, { status: 500 });
+    }
+    return NextResponse.json({ ok: true, status });
+  }
+
+  // Webhook email: id is UUID
   const { data: existing } = await supabase
     .from('inbound_emails')
     .select('id')

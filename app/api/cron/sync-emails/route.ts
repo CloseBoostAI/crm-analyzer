@@ -1,8 +1,9 @@
 import { NextRequest, NextResponse } from 'next/server';
-import { syncAllConnections } from '@/lib/email/sync';
 
-// Cron endpoint to sync emails from connected Gmail/Outlook accounts.
-// Configure in vercel.json crons array. Or call manually with CRON_SECRET header.
+/**
+ * No-op: Emails are now fetched on demand when opening Client Inbox.
+ * Kept for backward compatibility; returns success without syncing.
+ */
 export async function GET(request: NextRequest) {
   const authHeader = request.headers.get('authorization');
   const cronSecret = process.env.CRON_SECRET;
@@ -12,18 +13,5 @@ export async function GET(request: NextRequest) {
     return NextResponse.json({ error: 'Unauthorized' }, { status: 401 });
   }
 
-  try {
-    const { synced, errors } = await syncAllConnections();
-    return NextResponse.json({
-      ok: true,
-      synced,
-      errors: errors.length > 0 ? errors : undefined,
-    });
-  } catch (err) {
-    console.error('[sync-emails] Error:', err);
-    return NextResponse.json(
-      { error: (err as Error).message },
-      { status: 500 }
-    );
-  }
+  return NextResponse.json({ ok: true, synced: 0 });
 }

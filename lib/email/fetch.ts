@@ -10,6 +10,7 @@ import {
   refreshGmailToken,
 } from '@/lib/email/gmail';
 import {
+  getOutlookMessage,
   listOutlookMessages,
   parseOutlookMessage,
   refreshOutlookToken,
@@ -292,7 +293,17 @@ export async function fetchEmailForReply(
   if (connError || !conn) return null;
 
   const connTyped = conn as EmailConnection & { organization_id: string | null };
-  if (connTyped.organization_id !== organizationId) return null;
+  const orgMatches = connTyped.organization_id === organizationId;
+  if (!orgMatches) {
+    if (connTyped.organization_id != null) return null;
+    const { data: member } = await admin
+      .from('organization_members')
+      .select('user_id')
+      .eq('organization_id', organizationId)
+      .eq('user_id', connTyped.user_id)
+      .single();
+    if (!member) return null;
+  }
 
   const { data: membership } = await admin
     .from('organization_members')
@@ -377,14 +388,22 @@ export async function fetchEmailForReply(
   }
 
   if (connTyped.provider === 'outlook') {
-    const list = await listOutlookMessages(accessToken, 100);
-    const messages = list.value || [];
-    const target = messages.find((m) => m.id === messageId);
-    if (!target) return null;
+    let target;
+    try {
+      target = await getOutlookMessage(accessToken, messageId);
+    } catch {
+      return null;
+    }
 
     const parsed = parseOutlookMessage(target);
     const convId = target.conversationId;
-    const convMessages = convId ? messages.filter((m) => m.conversationId === convId) : [target];
+    let convMessages = [target];
+    if (convId) {
+      const list = await listOutlookMessages(accessToken, 100);
+      const messages = list.value || [];
+      convMessages = messages.filter((m) => m.conversationId === convId);
+      if (convMessages.length === 0) convMessages = [target];
+    }
     const threadEmails = convMessages
       .map((m) => {
         const p = parseOutlookMessage(m);

@@ -94,6 +94,20 @@ export interface OutlookMessageList {
   '@odata.nextLink'?: string;
 }
 
+const MS_GRAPH_MESSAGE = 'https://graph.microsoft.com/v1.0/me/messages';
+
+export async function getOutlookMessage(
+  accessToken: string,
+  messageId: string
+): Promise<OutlookMessage> {
+  const url = `${MS_GRAPH_MESSAGE}/${messageId}?$select=id,conversationId,from,toRecipients,subject,bodyPreview,body,receivedDateTime`;
+  const res = await fetch(url, {
+    headers: { Authorization: `Bearer ${accessToken}` },
+  });
+  if (!res.ok) throw new Error(`Outlook get message failed: ${await res.text()}`);
+  return res.json();
+}
+
 export async function listOutlookMessages(
   accessToken: string,
   top = 50

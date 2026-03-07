@@ -37,11 +37,27 @@ export async function PATCH(
   if (oauth) {
     const { data: conn } = await supabase
       .from('email_connections')
-      .select('id, organization_id')
+      .select('id, user_id, organization_id')
       .eq('id', oauth.connectionId)
       .single();
 
-    if (!conn || conn.organization_id !== myMembership.organization_id) {
+    if (!conn) {
+      return NextResponse.json({ error: 'Connection not found' }, { status: 404 });
+    }
+
+    // Allow if org matches, or connection has no org but connection's user is in our org
+    const orgMatches = conn.organization_id === myMembership.organization_id;
+    let allowed = orgMatches;
+    if (!allowed && !conn.organization_id) {
+      const { data: member } = await supabase
+        .from('organization_members')
+        .select('user_id')
+        .eq('organization_id', myMembership.organization_id)
+        .eq('user_id', conn.user_id)
+        .single();
+      allowed = !!member;
+    }
+    if (!allowed) {
       return NextResponse.json({ error: 'Not found' }, { status: 404 });
     }
 

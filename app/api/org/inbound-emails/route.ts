@@ -47,12 +47,15 @@ export async function GET(request: Request) {
   // 1. Fetch OAuth emails on demand (no storage)
   const oauthEmails = await fetchEmailsForOrg(orgId, statusFilter, limit);
 
-  // 2. Fetch webhook emails from DB (connection_id is null)
+  // 2. Fetch webhook emails from DB (connection_id is null AND message_id is null)
+  // Exclude orphaned OAuth emails: when user disconnects Gmail, connection_id becomes null via FK,
+  // but message_id stays set - those are old synced emails, not webhook
   let query = supabase
     .from('inbound_emails')
     .select('id, sender_email, sender_name, to_email, subject, body_text, body_html, deal_id, deal_name, status, received_at')
     .eq('organization_id', orgId)
     .is('connection_id', null)
+    .is('message_id', null)
     .order('received_at', { ascending: false })
     .limit(limit);
 

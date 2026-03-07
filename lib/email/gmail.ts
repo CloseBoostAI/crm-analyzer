@@ -214,6 +214,57 @@ export function parseGmailMessage(msg: GmailMessage): {
   return { from, fromRaw, to, subject, bodyText: text, bodyHtml: html, date };
 }
 
+/** Build RFC 2822 message and base64url encode for Gmail API */
+function buildGmailRaw(to: string, subject: string, body: string, fromEmail?: string): string {
+  const from = fromEmail || 'noreply@example.com';
+  const lines = [
+    `From: ${from}`,
+    `To: ${to}`,
+    `Subject: ${subject}`,
+    'MIME-Version: 1.0',
+    'Content-Type: text/plain; charset=utf-8',
+    '',
+    body,
+  ];
+  const raw = lines.join('\r\n');
+  const base64 = Buffer.from(raw, 'utf-8').toString('base64');
+  return base64.replace(/\+/g, '-').replace(/\//g, '_').replace(/=+$/, '');
+}
+
+export interface SendGmailParams {
+  to: string;
+  subject: string;
+  body: string;
+  threadId?: string;
+  fromEmail?: string;
+}
+
+export async function sendGmailMessage(
+  accessToken: string,
+  params: SendGmailParams
+): Promise<{ id: string; threadId?: string }> {
+  const raw = buildGmailRaw(params.to, params.subject, params.body, params.fromEmail);
+  const body: { raw: string; threadId?: string } = { raw };
+  if (params.threadId) body.threadId = params.threadId;
+
+  const res = await fetch(`${GMAIL_API_BASE}/messages/send`, {
+    method: 'POST',
+    headers: {
+      Authorization: `Bearer ${accessToken}`,
+      'Content-Type': 'application/json',
+    },
+    body: JSON.stringify(body),
+  });
+
+  if (!res.ok) {
+    const err = await res.text();
+    throw new Error(`Gmail send failed: ${err}`);
+  }
+
+  const data = (await res.json()) as { id: string; threadId?: string };
+  return { id: data.id, threadId: data.threadId };
+}
+
 export async function refreshGmailToken(refreshToken: string): Promise<GmailTokens> {
   const clientId = process.env.GOOGLE_CLIENT_ID;
   const clientSecret = process.env.GOOGLE_CLIENT_SECRET;

@@ -149,6 +149,73 @@ export async function getOutlookUserEmail(accessToken: string): Promise<string> 
   return email?.toLowerCase() || '';
 }
 
+const MS_GRAPH_SEND = 'https://graph.microsoft.com/v1.0/me/sendMail';
+
+export interface SendOutlookParams {
+  to: string;
+  toName?: string;
+  subject: string;
+  body: string;
+}
+
+/** Send a new email via Microsoft Graph (for webhook emails or new threads) */
+export async function sendOutlookMessage(
+  accessToken: string,
+  params: SendOutlookParams
+): Promise<void> {
+  const res = await fetch(MS_GRAPH_SEND, {
+    method: 'POST',
+    headers: {
+      Authorization: `Bearer ${accessToken}`,
+      'Content-Type': 'application/json',
+    },
+    body: JSON.stringify({
+      message: {
+        subject: params.subject,
+        body: {
+          contentType: 'Text',
+          content: params.body,
+        },
+        toRecipients: [
+          {
+            emailAddress: {
+              address: params.to,
+              name: params.toName || params.to,
+            },
+          },
+        ],
+      },
+    }),
+  });
+
+  if (!res.ok) {
+    const err = await res.text();
+    throw new Error(`Outlook send failed: ${err}`);
+  }
+}
+
+/** Reply to an existing Outlook message (keeps thread) */
+export async function replyOutlookMessage(
+  accessToken: string,
+  messageId: string,
+  comment: string
+): Promise<void> {
+  const url = `https://graph.microsoft.com/v1.0/me/messages/${messageId}/reply`;
+  const res = await fetch(url, {
+    method: 'POST',
+    headers: {
+      Authorization: `Bearer ${accessToken}`,
+      'Content-Type': 'application/json',
+    },
+    body: JSON.stringify({ comment }),
+  });
+
+  if (!res.ok) {
+    const err = await res.text();
+    throw new Error(`Outlook reply failed: ${err}`);
+  }
+}
+
 export async function refreshOutlookToken(refreshToken: string): Promise<OutlookTokens> {
   const clientId = process.env.MICROSOFT_CLIENT_ID;
   const clientSecret = process.env.MICROSOFT_CLIENT_SECRET;

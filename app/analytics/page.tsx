@@ -476,6 +476,7 @@ export default function AnalyticsPage() {
   const [inboundEmailSyncing, setInboundEmailSyncing] = useState(false);
   const [inboundEmailFilter, setInboundEmailFilter] = useState<'all' | 'pending' | 'acknowledged' | 'replied'>('all');
   const [generatingReplyForId, setGeneratingReplyForId] = useState<string | null>(null);
+  const [sendingReplyForId, setSendingReplyForId] = useState<string | null>(null);
   const [generatedReplyForId, setGeneratedReplyForId] = useState<string | null>(null);
   const [generatedReplyText, setGeneratedReplyText] = useState('');
 
@@ -2290,6 +2291,17 @@ OUTPUT: The complete email only — greeting, body (label → Miner line → no-
                           <Button
                             variant="outline"
                             size="sm"
+                            onClick={() => {
+                              setGeneratedReplyForId(email.id);
+                              setGeneratedReplyText('');
+                            }}
+                          >
+                            <Pencil className="h-4 w-4 mr-1" />
+                            Compose
+                          </Button>
+                          <Button
+                            variant="outline"
+                            size="sm"
                             onClick={async () => {
                               setGeneratingReplyForId(email.id);
                               setGeneratedReplyForId(null);
@@ -2323,13 +2335,51 @@ OUTPUT: The complete email only — greeting, body (label → Miner line → no-
                           </Button>
                         </div>
                       </div>
-                      {generatedReplyForId === email.id && generatedReplyText && (
+                      {generatedReplyForId === email.id && (
                         <div className="mt-3 pt-3 border-t">
-                          <p className="text-sm font-medium mb-2">AI-generated reply</p>
-                          <div className="rounded-lg border p-4 bg-muted/50">
-                            <pre className="whitespace-pre-wrap font-sans text-sm">{generatedReplyText}</pre>
-                          </div>
-                          <div className="flex gap-2 mt-2">
+                          <p className="text-sm font-medium mb-2">Reply (edit before sending)</p>
+                          <Textarea
+                            value={generatedReplyText}
+                            onChange={(e) => setGeneratedReplyText(e.target.value)}
+                            className="min-h-[120px] font-sans text-sm resize-y"
+                            placeholder="Edit your reply..."
+                          />
+                          <div className="flex gap-2 mt-2 flex-wrap">
+                            <Button
+                              size="sm"
+                              onClick={async () => {
+                                setSendingReplyForId(email.id);
+                                try {
+                                  const res = await fetch('/api/org/send-email-reply', {
+                                    method: 'POST',
+                                    headers: { 'Content-Type': 'application/json' },
+                                    body: JSON.stringify({ emailId: email.id, replyBody: generatedReplyText }),
+                                  });
+                                  const data = await res.json();
+                                  if (data.error) throw new Error(data.error);
+                                  setInboundEmails((prev) =>
+                                    prev.map((e) => (e.id === email.id ? { ...e, status: 'replied' as const } : e))
+                                  );
+                                  setGeneratedReplyForId(null);
+                                  setGeneratedReplyText('');
+                                  toast.success('Reply sent');
+                                } catch (e: any) {
+                                  toast.error(e?.message || 'Failed to send');
+                                } finally {
+                                  setSendingReplyForId(null);
+                                }
+                              }}
+                              disabled={sendingReplyForId === email.id || !generatedReplyText.trim()}
+                            >
+                              {sendingReplyForId === email.id ? (
+                                <span className="animate-pulse">Sending...</span>
+                              ) : (
+                                <>
+                                  <Send className="h-4 w-4 mr-1" />
+                                  Send reply
+                                </>
+                              )}
+                            </Button>
                             <Button
                               size="sm"
                               variant="outline"
@@ -2337,6 +2387,7 @@ OUTPUT: The complete email only — greeting, body (label → Miner line → no-
                                 navigator.clipboard.writeText(generatedReplyText);
                                 toast.success('Reply copied to clipboard');
                               }}
+                              disabled={!generatedReplyText.trim()}
                             >
                               Copy
                             </Button>

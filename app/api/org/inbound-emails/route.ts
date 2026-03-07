@@ -99,5 +99,8 @@ export async function GET(request: Request) {
     (a, b) => new Date(b.receivedAt).getTime() - new Date(a.receivedAt).getTime()
   );
 
-  return NextResponse.json({ emails: combined.slice(0, limit) });
+  return NextResponse.json(
+    { emails: combined.slice(0, limit) },
+    { headers: { 'Cache-Control': 'no-store, max-age=0' } }
+  );
 }

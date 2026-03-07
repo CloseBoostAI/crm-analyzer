@@ -64,7 +64,7 @@ export async function PATCH(
     return NextResponse.json({ ok: true, status });
   }
 
-  // Webhook email: id is UUID
+  // Webhook email: id is UUID (from inbound_emails)
   const { data: existing } = await supabase
     .from('inbound_emails')
     .select('id')
@@ -73,7 +73,10 @@ export async function PATCH(
     .single();
 
   if (!existing) {
-    return NextResponse.json({ error: 'Not found' }, { status: 404 });
+    return NextResponse.json(
+      { error: 'Email not found. It may have been removed—try refreshing the inbox.' },
+      { status: 404 }
+    );
   }
 
   const { error } = await supabase

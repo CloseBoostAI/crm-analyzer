@@ -2237,13 +2237,18 @@ OUTPUT: The complete email only — greeting, body (label → Miner line → no-
                                     body: JSON.stringify({ status: 'acknowledged' }),
                                   });
                                   const data = await res.json();
+                                  if (res.status === 404) {
+                                    toast.error(data.error || 'Email not found—refreshing inbox.');
+                                    fetchInboundOnly();
+                                    return;
+                                  }
                                   if (data.error) throw new Error(data.error);
                                   setInboundEmails((prev) =>
                                     prev.map((e) => (e.id === email.id ? { ...e, status: 'acknowledged' as const } : e))
                                   );
                                   toast.success('Marked as acknowledged');
-                                } catch {
-                                  toast.error('Failed to update');
+                                } catch (e: any) {
+                                  toast.error(e?.message || 'Failed to update');
                                 }
                               }}
                             >
@@ -2263,13 +2268,18 @@ OUTPUT: The complete email only — greeting, body (label → Miner line → no-
                                     body: JSON.stringify({ status: 'replied' }),
                                   });
                                   const data = await res.json();
+                                  if (res.status === 404) {
+                                    toast.error(data.error || 'Email not found—refreshing inbox.');
+                                    fetchInboundOnly();
+                                    return;
+                                  }
                                   if (data.error) throw new Error(data.error);
                                   setInboundEmails((prev) =>
                                     prev.map((e) => (e.id === email.id ? { ...e, status: 'replied' as const } : e))
                                   );
                                   toast.success('Marked as replied');
-                                } catch {
-                                  toast.error('Failed to update');
+                                } catch (e: any) {
+                                  toast.error(e?.message || 'Failed to update');
                                 }
                               }}
                             >

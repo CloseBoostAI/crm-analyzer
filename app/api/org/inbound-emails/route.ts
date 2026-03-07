@@ -38,11 +38,24 @@ export async function GET(request: Request) {
   const { searchParams } = new URL(request.url);
   const statusParam = searchParams.get('status');
   const limit = Math.min(parseInt(searchParams.get('limit') || '50', 10), 100);
+  const includeDismissed = searchParams.get('includeDismissed') === 'true';
   const statusFilter = statusParam && ['pending', 'acknowledged', 'replied'].includes(statusParam)
     ? (statusParam as 'pending' | 'acknowledged' | 'replied')
     : undefined;
 
   const orgId = myMembership.organization_id;
+
+  // 0. Get user's dismissed email IDs (skip filter when includeDismissed=true for Remove dialog)
+  let dismissedIds = new Set<string>();
+  if (!includeDismissed) {
+    const { data: dismissedRows } = await supabase
+      .from('email_dismissals')
+      .select('email_id')
+      .eq('user_id', user.id);
+    if (dismissedRows) {
+      dismissedIds = new Set(dismissedRows.map((r) => r.email_id));
+    }
+  }
 
   // 1. Fetch OAuth emails on demand (no storage)
   const oauthEmails = await fetchEmailsForOrg(orgId, statusFilter, limit);
@@ -98,9 +111,9 @@ export async function GET(request: Request) {
     receivedAt: e.receivedAt,
   }));
 
-  const combined = [...oauthAsInbound, ...webhookEmails].sort(
-    (a, b) => new Date(b.receivedAt).getTime() - new Date(a.receivedAt).getTime()
-  );
+  const combined = [...oauthAsInbound, ...webhookEmails]
+    .filter((e) => !dismissedIds.has(e.id))
+    .sort((a, b) => new Date(b.receivedAt).getTime() - new Date(a.receivedAt).getTime());
 
   return NextResponse.json(
     { emails: combined.slice(0, limit) },

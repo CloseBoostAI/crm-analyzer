@@ -1,4 +1,5 @@
 import { createClient } from '@/lib/supabase/server';
+import { createAdminClient } from '@/lib/supabase/admin';
 import { NextResponse } from 'next/server';
 import { parseOauthEmailId } from '@/lib/email/fetch';
 
@@ -105,4 +106,63 @@ export async function PATCH(
   }
 
   return NextResponse.json({ ok: true, status });
+}
+
+/** Fully remove email: delete from DB if webhook, or add to dismissals if OAuth */
+export async function DELETE(
+  _request: Request,
+  { params }: { params: Promise<{ id: string }> }
+) {
+  const supabase = await createClient();
+  const { data: { user } } = await supabase.auth.getUser();
+
+  if (!user) {
+    return NextResponse.json({ error: 'Unauthorized' }, { status: 401 });
+  }
+
+  const { data: myMembership } = await supabase
+    .from('organization_members')
+    .select('organization_id')
+    .eq('user_id', user.id)
+    .limit(1)
+    .single();
+
+  if (!myMembership) {
+    return NextResponse.json({ error: 'Not in an organization' }, { status: 403 });
+  }
+
+  const { id } = await params;
+  const oauth = parseOauthEmailId(id);
+
+  if (oauth) {
+    // OAuth email: add to dismissals (can't delete from Gmail)
+    const { error } = await supabase
+      .from('email_dismissals')
+      .upsert(
+        { user_id: user.id, email_id: id },
+        { onConflict: 'user_id,email_id' }
+      );
+    if (error) return NextResponse.json({ error: error.message }, { status: 500 });
+  } else {
+    // Webhook email (UUID): fully delete from inbound_emails
+    const admin = createAdminClient();
+    const { data: existing } = await admin
+      .from('inbound_emails')
+      .select('id')
+      .eq('id', id)
+      .eq('organization_id', myMembership.organization_id)
+      .single();
+    if (existing) {
+      await admin.from('inbound_emails').delete().eq('id', id);
+    }
+    // Also add to dismissals in case it was cached or reappears
+    await supabase
+      .from('email_dismissals')
+      .upsert(
+        { user_id: user.id, email_id: id },
+        { onConflict: 'user_id,email_id' }
+      );
+  }
+
+  return NextResponse.json({ ok: true });
 }

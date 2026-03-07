@@ -22,6 +22,7 @@ Run these in **Supabase Dashboard → SQL Editor** in this exact order:
 | 10 | `supabase-migrations-inbound-emails-oauth.sql` | Extend inbound_emails for OAuth sync (user_id, connection_id, message_id, thread_id) |
 | 11 | `supabase-migrations-email-status.sql` | Minimal storage for OAuth email status (acknowledged/replied) |
 | 12 | `supabase-migrations-email-status-all-members.sql` | Allow all org members (not just owners/admins) to update email status |
+| 13 | `supabase-migrations-email-dismissals.sql` | Per-user dismissed emails (Remove from inbox) |
 
 ---
 

@@ -15,6 +15,7 @@ import {
   DialogTitle,
   DialogTrigger,
 } from "@/components/ui/dialog"
+import { ScrollArea } from "@/components/ui/scroll-area"
 import { Checkbox } from "@/components/ui/checkbox"
 import {
   useSettings,
@@ -720,7 +721,7 @@ function EmailConnectionsSection() {
             </div>
           )}
         </div>
-        <div className="flex gap-2">
+        <div className="flex gap-2 flex-wrap">
           <Button onClick={() => handleConnect("gmail")}>
             <Mail className="h-4 w-4 mr-2" />
             Connect Gmail
@@ -728,9 +729,105 @@ function EmailConnectionsSection() {
           <Button variant="outline" onClick={() => handleConnect("outlook")}>
             Connect Outlook
           </Button>
+          <RemoveEmailsDialog />
         </div>
       </CardContent>
     </Card>
+  )
+}
+
+function RemoveEmailsDialog() {
+  const [open, setOpen] = useState(false)
+  const [emails, setEmails] = useState<Array<{ id: string; senderEmail: string; senderName: string | null; subject: string; receivedAt: string }>>([])
+  const [loading, setLoading] = useState(false)
+  const [removing, setRemoving] = useState<string | null>(null)
+
+  useEffect(() => {
+    if (!open) return
+    setLoading(true)
+    fetch("/api/org/inbound-emails?includeDismissed=true&limit=100")
+      .then((r) => r.json())
+      .then((data) => {
+        if (data.emails) setEmails(data.emails)
+        else setEmails([])
+      })
+      .catch(() => {
+        toast.error("Failed to load emails")
+        setEmails([])
+      })
+      .finally(() => setLoading(false))
+  }, [open])
+
+  const handleRemove = async (emailId: string) => {
+    setRemoving(emailId)
+    try {
+      const res = await fetch(`/api/org/inbound-emails/${emailId}`, { method: "DELETE" })
+      const data = await res.json()
+      if (data.error) throw new Error(data.error)
+      setEmails((prev) => prev.filter((e) => e.id !== emailId))
+      toast.success("Email removed")
+    } catch (e: any) {
+      toast.error(e?.message || "Failed to remove")
+    } finally {
+      setRemoving(null)
+    }
+  }
+
+  return (
+    <Dialog open={open} onOpenChange={setOpen}>
+      <DialogTrigger asChild>
+        <Button variant="outline" className="text-destructive hover:text-destructive hover:bg-destructive/10">
+          <Trash2 className="h-4 w-4 mr-2" />
+          Remove emails
+        </Button>
+      </DialogTrigger>
+      <DialogContent className="max-w-2xl max-h-[85vh] flex flex-col">
+        <DialogHeader>
+          <DialogTitle>Remove emails</DialogTitle>
+          <DialogDescription>
+            Permanently remove emails from your inbox. Webhook emails are deleted from the database. OAuth emails (Gmail/Outlook) are hidden from your view.
+          </DialogDescription>
+        </DialogHeader>
+        {loading ? (
+          <div className="flex justify-center py-12">
+            <div className="animate-spin h-8 w-8 border-4 border-primary border-t-transparent rounded-full" />
+          </div>
+        ) : emails.length === 0 ? (
+          <p className="text-sm text-muted-foreground py-8 text-center">No emails to remove.</p>
+        ) : (
+          <ScrollArea className="flex-1 min-h-0 -mx-6 px-6">
+            <div className="space-y-2 pr-4">
+              {emails.map((email) => (
+                <div
+                  key={email.id}
+                  className="flex items-center justify-between gap-4 rounded-lg border p-3"
+                >
+                  <div className="min-w-0 flex-1">
+                    <p className="font-medium text-sm truncate">
+                      {email.senderName || email.senderEmail}
+                    </p>
+                    <p className="text-sm text-muted-foreground truncate">
+                      {email.subject || "(no subject)"}
+                    </p>
+                    <p className="text-xs text-muted-foreground mt-0.5">
+                      {new Date(email.receivedAt).toLocaleString()}
+                    </p>
+                  </div>
+                  <Button
+                    variant="destructive"
+                    size="sm"
+                    onClick={() => handleRemove(email.id)}
+                    disabled={removing === email.id}
+                  >
+                    {removing === email.id ? "Removing..." : "Remove"}
+                  </Button>
+                </div>
+              ))}
+            </div>
+          </ScrollArea>
+        )}
+      </DialogContent>
+    </Dialog>
   )
 }
 

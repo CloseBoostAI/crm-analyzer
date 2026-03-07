@@ -20,8 +20,8 @@ export async function PATCH(
     .limit(1)
     .single();
 
-  if (!myMembership || !['owner', 'admin'].includes(myMembership.role)) {
-    return NextResponse.json({ error: 'Only owners and admins can update' }, { status: 403 });
+  if (!myMembership) {
+    return NextResponse.json({ error: 'Not in an organization' }, { status: 403 });
   }
 
   const { id } = await params;

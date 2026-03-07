@@ -2225,7 +2225,7 @@ OUTPUT: The complete email only — greeting, body (label → Miner line → no-
                           }`}>
                             {email.status}
                           </span>
-                          {isOrgLeader && email.status !== 'acknowledged' && (
+                          {email.status !== 'acknowledged' && (
                             <Button
                               variant="outline"
                               size="sm"
@@ -2251,7 +2251,7 @@ OUTPUT: The complete email only — greeting, body (label → Miner line → no-
                               Acknowledge
                             </Button>
                           )}
-                          {isOrgLeader && email.status !== 'replied' && (
+                          {email.status !== 'replied' && (
                             <Button
                               variant="outline"
                               size="sm"

@@ -38,18 +38,20 @@ CRON_SECRET=your_secret_for_manual_cron_calls
 
 ---
 
-## 3. Microsoft OAuth Setup
+## 3. Microsoft Outlook OAuth Setup
 
-1. Go to [Azure Portal](https://portal.azure.com/) → **App registrations → New registration**
-2. Name your app, set redirect URI: `https://yourdomain.com/auth/email/callback`
-3. Under **Certificates & secrets**, create a client secret
-4. Under **API permissions**, add:
-   - Mail.Read
-   - Mail.Send
-   - User.Read
-   - offline_access
-   - openid
-5. Copy Application (client) ID and client secret to env
+1. Go to [Azure Portal](https://portal.azure.com/) → **App registrations** → **New registration**
+2. **Name:** e.g. "CloseBoost"  
+   **Supported account types:** "Accounts in any organizational directory and personal Microsoft accounts"  
+   **Redirect URI:** Web → `https://closeboost.ai/auth/email/callback` (add `http://localhost:3000/auth/email/callback` for local dev)  
+   Click **Register**
+3. **Certificates & secrets** → **New client secret** → Add description, choose expiry → **Add**  
+   Copy the **Value** immediately (it's shown only once) → paste as `MICROSOFT_CLIENT_SECRET`
+4. **Overview** → Copy **Application (client) ID** → paste as `MICROSOFT_CLIENT_ID`
+5. **API permissions** → **Add a permission** → **Microsoft Graph** → **Delegated**  
+   Add: `Mail.Read`, `Mail.Send`, `User.Read`, `offline_access`, `openid`  
+   Click **Grant admin consent** (if you have admin rights)
+6. Add both values to `.env.local` and redeploy
 
 ---
 

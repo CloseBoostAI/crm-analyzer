@@ -10,7 +10,7 @@ import { Label } from "@/components/ui/label";
 import { Tabs, TabsList, TabsTrigger, TabsContent } from "@/components/ui/tabs";
 import { toast } from "sonner";
 import { useRouter } from 'next/navigation';
-import { saveDeals, saveCustomers, saveLogs } from '@/lib/supabase/data';
+import { saveDeals, saveCustomers, saveLogs, loadDeals, loadCustomers } from '@/lib/supabase/data';
 import { TARGET_FIELDS, tryAutoMap, applyMapping, type ColumnMapping } from '@/lib/column-mapper';
 import { useSettings } from '@/lib/settings-context';
 import { UNIVERSAL_DEAL_STAGES, matchDealStage, getDealStageLabel, getDealStageColor, cn, computeDealPriorities } from '@/lib/utils';
@@ -271,7 +271,7 @@ export default function UploadPage() {
     }
   });
 
-  const processContent = async (content: string) => {
+  const processContent = async (content: string, mergeWithExisting = false) => {
     setUploading(true);
     setProgress(0);
 
@@ -331,8 +331,11 @@ export default function UploadPage() {
             const contact = strip(record['Contact'] || '');
             const name = dealName || company || contact;
 
+            const rawId = strip(record['Record ID']);
+            const id = rawId || 'deal_' + Math.random().toString(36).substr(2, 9);
+
             const deal = {
-              id: strip(record['Record ID']),
+              id,
               name,
               stage: strip(record['Deal Stage']),
               owner: strip(record['Deal owner']),
@@ -346,7 +349,7 @@ export default function UploadPage() {
             };
 
             const customer = {
-              id: strip(record['Record ID']),
+              id,
               name: contact || dealName || company,
               email: strip(record['Email'] || ''),
               company: company || dealName,
@@ -381,9 +384,21 @@ export default function UploadPage() {
         );
 
         setProgress(70);
-        await saveDeals(dealsOnly);
-        await saveCustomers(customersOnly as any);
-        await saveLogs(logsOnly as any);
+        let finalDeals = dealsOnly;
+        let finalCustomers = customersOnly as any;
+        if (mergeWithExisting) {
+          const existingDeals = await loadDeals();
+          const existingCustomers = await loadCustomers();
+          const dealsById = new Map(existingDeals.map((d) => [d.id, d]));
+          const customersById = new Map(existingCustomers.map((c) => [c.id, c]));
+          for (const d of dealsOnly) dealsById.set(d.id, d);
+          for (const c of customersOnly) customersById.set(c.id, c);
+          finalDeals = Array.from(dealsById.values());
+          finalCustomers = Array.from(customersById.values());
+        }
+        await saveDeals(finalDeals);
+        await saveCustomers(finalCustomers);
+        await saveLogs(logsOnly);
 
         setProgress(100);
         toast.success('Deals and customer data processed successfully');
@@ -709,7 +724,7 @@ export default function UploadPage() {
     ];
 
     const csvContent = csvRows.join('\n');
-    await processContent(csvContent);
+    await processContent(csvContent, true);
   };
 
   const removeFile = (index: number) => {

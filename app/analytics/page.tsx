@@ -435,6 +435,7 @@ export default function AnalyticsPage() {
   const [selectedDeal, setSelectedDeal] = useState<Deal | null>(null);
   const [generatedEmail, setGeneratedEmail] = useState('');
   const [generating, setGenerating] = useState(false);
+  const [sendingEmail, setSendingEmail] = useState(false);
   const [progress, setProgress] = useState(0);
   const [emailTone, setEmailTone] = useState<number>(0);
   const [dismissedTaskIds, setDismissedTaskIds] = useState<Set<string>>(new Set());
@@ -2578,6 +2579,48 @@ OUTPUT: The complete email only — greeting, body (label → Miner line → no-
                           className="bg-green-600 hover:bg-green-700 text-white"
                         >
                           Copy
+                        </Button>
+                        <Button
+                          onClick={async () => {
+                            if (!selectedCustomer?.email?.trim()) {
+                              toast.error('No email address for this contact. Add an email to the deal to send.');
+                              return;
+                            }
+                            setSendingEmail(true);
+                            try {
+                              const res = await fetch('/api/org/send-email', {
+                                method: 'POST',
+                                headers: { 'Content-Type': 'application/json' },
+                                body: JSON.stringify({
+                                  to: selectedCustomer.email.trim(),
+                                  toName: selectedCustomer.name || undefined,
+                                  subject: 'Following up',
+                                  body: generatedEmail,
+                                }),
+                              });
+                              const data = await res.json();
+                              if (!res.ok) throw new Error(data.error || 'Failed to send');
+                              toast.success('Email sent successfully!');
+                            } catch (err: any) {
+                              toast.error(err?.message || 'Failed to send email');
+                            } finally {
+                              setSendingEmail(false);
+                            }
+                          }}
+                          disabled={!generatedEmail || sendingEmail}
+                          className="bg-primary hover:bg-primary/90"
+                        >
+                          {sendingEmail ? (
+                            <>
+                              <div className="mr-2 h-4 w-4 animate-spin rounded-full border-2 border-white border-t-transparent" />
+                              Sending...
+                            </>
+                          ) : (
+                            <>
+                              <Send className="h-4 w-4 mr-2" />
+                              Send
+                            </>
+                          )}
                         </Button>
                       </div>
                     </div>

@@ -165,9 +165,10 @@ export async function getOutlookUserEmail(accessToken: string): Promise<string> 
 
 const MS_GRAPH_SEND = 'https://graph.microsoft.com/v1.0/me/sendMail';
 
+// Microsoft Graph requires custom headers to start with 'X-'
 const LIST_UNSUBSCRIBE_HEADERS = [
-  { name: 'List-Unsubscribe', value: '<mailto:unsubscribe@closeboost.ai?subject=unsubscribe>' },
-  { name: 'List-Unsubscribe-Post', value: 'List-Unsubscribe=One-Click' },
+  { name: 'X-List-Unsubscribe', value: '<mailto:unsubscribe@closeboost.ai?subject=unsubscribe>' },
+  { name: 'X-List-Unsubscribe-Post', value: 'List-Unsubscribe=One-Click' },
 ];
 
 export interface SendOutlookParams {

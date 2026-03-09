@@ -165,6 +165,11 @@ export async function getOutlookUserEmail(accessToken: string): Promise<string> 
 
 const MS_GRAPH_SEND = 'https://graph.microsoft.com/v1.0/me/sendMail';
 
+const LIST_UNSUBSCRIBE_HEADERS = [
+  { name: 'List-Unsubscribe', value: '<mailto:unsubscribe@closeboost.ai?subject=unsubscribe>' },
+  { name: 'List-Unsubscribe-Post', value: 'List-Unsubscribe=One-Click' },
+];
+
 export interface SendOutlookParams {
   to: string;
   toName?: string;
@@ -198,6 +203,7 @@ export async function sendOutlookMessage(
             },
           },
         ],
+        internetMessageHeaders: LIST_UNSUBSCRIBE_HEADERS,
       },
     }),
   });
@@ -221,7 +227,10 @@ export async function replyOutlookMessage(
       Authorization: `Bearer ${accessToken}`,
       'Content-Type': 'application/json',
     },
-    body: JSON.stringify({ comment }),
+    body: JSON.stringify({
+      comment,
+      message: { internetMessageHeaders: LIST_UNSUBSCRIBE_HEADERS },
+    }),
   });
 
   if (!res.ok) {

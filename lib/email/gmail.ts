@@ -221,6 +221,8 @@ function buildGmailRaw(to: string, subject: string, body: string, fromEmail?: st
     `From: ${from}`,
     `To: ${to}`,
     `Subject: ${subject}`,
+    'List-Unsubscribe: <mailto:unsubscribe@closeboost.ai?subject=unsubscribe>',
+    'List-Unsubscribe-Post: List-Unsubscribe=One-Click',
     'MIME-Version: 1.0',
     'Content-Type: text/plain; charset=utf-8',
     '',

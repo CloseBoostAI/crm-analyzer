@@ -392,17 +392,17 @@ export function DealDetailsDialog({ deal, open, onOpenChange, onNotesSaved }: Pr
                                 {thread.status}
                               </span>
                             </div>
-                            <div className="divide-y">
+                            <div className="p-3 space-y-3">
                               {thread.messages.map((msg, i) => (
                                 <div
                                   key={i}
-                                  className={`p-3 text-sm ${
+                                  className={`rounded-lg border p-3 text-sm ${
                                     msg.isFromUser
-                                      ? 'bg-primary/5 border-l-2 border-l-primary'
-                                      : 'bg-background'
+                                      ? 'border-primary/50 bg-primary/5'
+                                      : 'border-border bg-muted/30'
                                   }`}
                                 >
-                                  <div className="flex items-center justify-between gap-2 mb-1">
+                                  <div className="flex items-center justify-between gap-2 mb-2">
                                     <p className="font-medium text-xs">
                                       {msg.isFromUser ? 'You' : (msg.senderName || msg.senderEmail)}
                                     </p>

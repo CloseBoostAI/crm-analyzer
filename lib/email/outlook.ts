@@ -120,6 +120,21 @@ export async function listOutlookMessages(
   return res.json();
 }
 
+/** List all messages in a conversation (inbox + sent) for full thread view */
+export async function listOutlookMessagesByConversation(
+  accessToken: string,
+  conversationId: string
+): Promise<OutlookMessage[]> {
+  const escaped = conversationId.replace(/'/g, "''");
+  const url = `https://graph.microsoft.com/v1.0/me/messages?$filter=conversationId eq '${escaped}'&$select=id,conversationId,from,toRecipients,subject,bodyPreview,body,receivedDateTime&$orderby=receivedDateTime asc`;
+  const res = await fetch(url, {
+    headers: { Authorization: `Bearer ${accessToken}` },
+  });
+  if (!res.ok) return [];
+  const data = (await res.json()) as OutlookMessageList;
+  return data.value || [];
+}
+
 export function parseOutlookMessage(msg: OutlookMessage): {
   from: string;
   fromRaw: string;

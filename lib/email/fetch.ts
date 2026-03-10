@@ -13,6 +13,7 @@ import {
 import {
   getOutlookMessage,
   listOutlookMessages,
+  listOutlookMessagesByConversation,
   parseOutlookMessage,
   refreshOutlookToken,
 } from '@/lib/email/outlook';
@@ -400,10 +401,8 @@ export async function fetchEmailForReply(
     const convId = target.conversationId;
     let convMessages = [target];
     if (convId) {
-      const list = await listOutlookMessages(accessToken, 100);
-      const messages = list.value || [];
-      convMessages = messages.filter((m) => m.conversationId === convId);
-      if (convMessages.length === 0) convMessages = [target];
+      const allInConv = await listOutlookMessagesByConversation(accessToken, convId);
+      if (allInConv.length > 0) convMessages = allInConv;
     }
     const threadEmails = convMessages
       .map((m) => {
@@ -434,7 +433,8 @@ export async function fetchEmailForReply(
 }
 
 /** Fetch full email thread for deal activity (customer + user replies).
- * Returns messages in chronological order with isFromUser flag. */
+ * Returns messages in chronological order with isFromUser flag.
+ * Also returns threadId for deduplication. */
 export async function fetchThreadForDealEmail(
   connectionId: string,
   messageId: string,
@@ -442,6 +442,7 @@ export async function fetchThreadForDealEmail(
   organizationId: string
 ): Promise<{
   subject: string;
+  threadId: string | null;
   messages: Array<{
     senderEmail: string;
     senderName: string | null;
@@ -452,6 +453,7 @@ export async function fetchThreadForDealEmail(
 } | null> {
   const admin = createAdminClient();
 
+  // Get org connection emails + this connection's email explicitly (for accurate "You" attribution)
   const { data: members } = await admin
     .from('organization_members')
     .select('user_id')
@@ -459,11 +461,15 @@ export async function fetchThreadForDealEmail(
   const userIds = (members || []).map((m: { user_id: string }) => m.user_id);
   const { data: connections } = await admin
     .from('email_connections')
-    .select('email')
+    .select('id, email')
     .in('user_id', userIds);
   const orgEmails = new Set(
     (connections || []).map((c: { email: string }) => c.email?.toLowerCase()).filter(Boolean)
   );
+  const thisConn = (connections || []).find((c: { id: string }) => c.id === connectionId) as { email?: string } | undefined;
+  if (thisConn?.email) {
+    orgEmails.add(thisConn.email.toLowerCase());
+  }
 
   const result = await fetchEmailForReply(
     connectionId,
@@ -479,11 +485,12 @@ export async function fetchThreadForDealEmail(
     senderName: m.senderName,
     bodyText: m.bodyText,
     receivedAt: m.receivedAt,
-    isFromUser: orgEmails.has(m.senderEmail?.toLowerCase() || ''),
+    isFromUser: orgEmails.has((m.senderEmail || '').trim().toLowerCase()),
   }));
 
   return {
     subject: result.subject,
+    threadId: result.threadId,
     messages,
   };
 }

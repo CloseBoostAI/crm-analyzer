@@ -149,6 +149,7 @@ export async function GET(
   });
 
   const threads: DealEmailThread[] = [];
+  const seenThreadKeys = new Set<string>();
 
   for (const seed of uniqueSeeds) {
     if (seed.connectionId && seed.messageId) {
@@ -159,6 +160,12 @@ export async function GET(
         orgId
       );
       if (threadData) {
+        const threadKey = threadData.threadId
+          ? `${seed.connectionId}:${threadData.threadId}`
+          : `${seed.connectionId}:${seed.messageId}`;
+        if (seenThreadKeys.has(threadKey)) continue;
+        seenThreadKeys.add(threadKey);
+
         threads.push({
           id: seed.id,
           subject: threadData.subject,

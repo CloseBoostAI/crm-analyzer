@@ -1,6 +1,6 @@
 'use client';
 
-import { useState, useEffect } from 'react';
+import { useState, useEffect, useCallback } from 'react';
 import {
   Dialog,
   DialogContent,
@@ -32,8 +32,21 @@ import {
   Copy,
   RefreshCw,
   Loader2,
+  Inbox,
 } from 'lucide-react';
 import { toast } from 'sonner';
+
+type DealEmail = {
+  id: string;
+  senderEmail: string;
+  senderName: string | null;
+  toEmail: string;
+  subject: string;
+  bodyText: string | null;
+  bodyHtml: string | null;
+  status: 'pending' | 'acknowledged' | 'replied';
+  receivedAt: string;
+};
 
 export type DealForDialog = {
   id: string;
@@ -75,10 +88,37 @@ export function DealDetailsDialog({ deal, open, onOpenChange, onNotesSaved }: Pr
   const [aiOpen, setAiOpen] = useState(true);
   const [notes, setNotes] = useState('');
   const [savingNotes, setSavingNotes] = useState(false);
+  const [activeTab, setActiveTab] = useState<'overview' | 'activities'>('overview');
+  const [dealEmails, setDealEmails] = useState<DealEmail[]>([]);
+  const [emailsLoading, setEmailsLoading] = useState(false);
 
   useEffect(() => {
     if (deal) setNotes(deal.notes || '');
   }, [deal?.id, deal?.notes]);
+
+  const fetchDealEmails = useCallback(async () => {
+    if (!deal) return;
+    setEmailsLoading(true);
+    try {
+      const res = await fetch(`/api/org/deals/${deal.id}/emails`);
+      if (res.ok) {
+        const data = await res.json();
+        setDealEmails(data.emails || []);
+      } else {
+        setDealEmails([]);
+      }
+    } catch {
+      setDealEmails([]);
+    } finally {
+      setEmailsLoading(false);
+    }
+  }, [deal?.id]);
+
+  useEffect(() => {
+    if (deal && activeTab === 'activities') {
+      fetchDealEmails();
+    }
+  }, [deal?.id, activeTab, fetchDealEmails]);
 
   const saveNotes = async () => {
     if (!deal || notes === (deal.notes || '')) return;
@@ -244,45 +284,131 @@ export function DealDetailsDialog({ deal, open, onOpenChange, onNotesSaved }: Pr
             {/* Center content */}
             <div className="lg:col-span-5 space-y-4">
               <div className="flex gap-2 border-b">
-                <Button variant="ghost" className="rounded-b-none border-b-2 border-primary">
+                <Button
+                  variant="ghost"
+                  className={`rounded-b-none ${activeTab === 'overview' ? 'border-b-2 border-primary' : 'text-muted-foreground'}`}
+                  onClick={() => setActiveTab('overview')}
+                >
                   Overview
                 </Button>
-                <Button variant="ghost" className="rounded-b-none text-muted-foreground">
+                <Button
+                  variant="ghost"
+                  className={`rounded-b-none ${activeTab === 'activities' ? 'border-b-2 border-primary' : 'text-muted-foreground'}`}
+                  onClick={() => setActiveTab('activities')}
+                >
                   Activities
                 </Button>
               </div>
 
-              <Card>
-                <CardHeader>
-                  <CardTitle className="text-sm font-medium">Data highlights</CardTitle>
-                </CardHeader>
-                <CardContent className="space-y-2 text-sm">
-                  <p><strong>CREATE DATE:</strong> {createDate}</p>
-                  <p><strong>LAST ACTIVITY DATE:</strong> {lastActivityDate}</p>
-                  <p><strong>DEAL STAGE:</strong> {deal.stage} (Deals pipeline)</p>
-                </CardContent>
-              </Card>
+              {activeTab === 'overview' ? (
+                <>
+                  <Card>
+                    <CardHeader>
+                      <CardTitle className="text-sm font-medium">Data highlights</CardTitle>
+                    </CardHeader>
+                    <CardContent className="space-y-2 text-sm">
+                      <p><strong>CREATE DATE:</strong> {createDate}</p>
+                      <p><strong>LAST ACTIVITY DATE:</strong> {lastActivityDate}</p>
+                      <p><strong>DEAL STAGE:</strong> {deal.stage} (Deals pipeline)</p>
+                    </CardContent>
+                  </Card>
 
-              <Card>
-                <CardHeader>
-                  <CardTitle className="text-sm font-medium">Notes</CardTitle>
-                </CardHeader>
-                <CardContent>
-                  <Textarea
-                    value={notes}
-                    onChange={(e) => setNotes(e.target.value)}
-                    onBlur={saveNotes}
-                    placeholder="Add notes about this deal..."
-                    className="min-h-[200px] resize-y font-mono text-sm"
-                    disabled={savingNotes}
-                  />
-                  {savingNotes && (
-                    <p className="text-xs text-muted-foreground mt-2 flex items-center gap-1">
-                      <Loader2 className="h-3 w-3 animate-spin" /> Saving...
-                    </p>
-                  )}
-                </CardContent>
-              </Card>
+                  <Card>
+                    <CardHeader>
+                      <CardTitle className="text-sm font-medium">Notes</CardTitle>
+                    </CardHeader>
+                    <CardContent>
+                      <Textarea
+                        value={notes}
+                        onChange={(e) => setNotes(e.target.value)}
+                        onBlur={saveNotes}
+                        placeholder="Add notes about this deal..."
+                        className="min-h-[200px] resize-y font-mono text-sm"
+                        disabled={savingNotes}
+                      />
+                      {savingNotes && (
+                        <p className="text-xs text-muted-foreground mt-2 flex items-center gap-1">
+                          <Loader2 className="h-3 w-3 animate-spin" /> Saving...
+                        </p>
+                      )}
+                    </CardContent>
+                  </Card>
+                </>
+              ) : (
+                <Card>
+                  <CardHeader className="flex flex-row items-center justify-between">
+                    <CardTitle className="text-sm font-medium">Email activity</CardTitle>
+                    <Button
+                      variant="ghost"
+                      size="sm"
+                      onClick={fetchDealEmails}
+                      disabled={emailsLoading}
+                    >
+                      {emailsLoading ? (
+                        <Loader2 className="h-4 w-4 animate-spin" />
+                      ) : (
+                        <RefreshCw className="h-4 w-4" />
+                      )}
+                    </Button>
+                  </CardHeader>
+                  <CardContent>
+                    {emailsLoading && dealEmails.length === 0 ? (
+                      <div className="flex items-center justify-center py-8 text-muted-foreground">
+                        <Loader2 className="h-6 w-6 animate-spin mr-2" />
+                        Loading emails...
+                      </div>
+                    ) : dealEmails.length === 0 ? (
+                      <div className="text-center py-8 text-muted-foreground">
+                        <Inbox className="h-10 w-10 mx-auto mb-2 opacity-50" />
+                        <p className="text-sm font-medium">No email exchanges yet</p>
+                        <p className="text-xs mt-1">
+                          Emails from {deal.email || 'this contact'} will appear here when received.
+                        </p>
+                      </div>
+                    ) : (
+                      <div className="space-y-3 max-h-[400px] overflow-y-auto">
+                        {dealEmails.map((email) => (
+                          <div
+                            key={email.id}
+                            className="border rounded-lg p-3 space-y-1.5 text-sm"
+                          >
+                            <div className="flex items-start justify-between gap-2">
+                              <div className="min-w-0 flex-1">
+                                <p className="font-medium truncate">
+                                  {email.senderName || email.senderEmail}
+                                </p>
+                                <p className="text-xs text-muted-foreground truncate">
+                                  {email.subject || '(no subject)'}
+                                </p>
+                              </div>
+                              <span
+                                className={`shrink-0 text-xs px-2 py-0.5 rounded ${
+                                  email.status === 'pending'
+                                    ? 'bg-amber-100 text-amber-800 dark:bg-amber-900/50 dark:text-amber-200'
+                                    : email.status === 'acknowledged'
+                                    ? 'bg-blue-100 text-blue-800 dark:bg-blue-900/50 dark:text-blue-200'
+                                    : 'bg-green-100 text-green-800 dark:bg-green-900/50 dark:text-green-200'
+                                }`}
+                              >
+                                {email.status}
+                              </span>
+                            </div>
+                            <p className="text-xs text-muted-foreground">
+                              {new Date(email.receivedAt).toLocaleString()}
+                            </p>
+                            {(email.bodyText || email.bodyHtml) && (
+                              <p className="text-xs text-muted-foreground line-clamp-2 mt-1">
+                                {(email.bodyText || (email.bodyHtml || '').replace(/<[^>]*>/g, '')).replace(/\s+/g, ' ').trim().slice(0, 150)}
+                                {(email.bodyText || (email.bodyHtml || '').replace(/<[^>]*>/g, '')).replace(/\s+/g, ' ').trim().length > 150 ? '...' : ''}
+                              </p>
+                            )}
+                          </div>
+                        ))}
+                      </div>
+                    )}
+                  </CardContent>
+                </Card>
+              )}
             </div>
 
             {/* Right sidebar */}

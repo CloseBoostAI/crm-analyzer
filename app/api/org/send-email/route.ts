@@ -45,9 +45,6 @@ export async function POST(request: NextRequest) {
     return NextResponse.json({ error: 'Email body cannot be empty' }, { status: 400 });
   }
 
-  const UNSUBSCRIBE_FOOTER = '\n\n---\nTo unsubscribe from these emails, reply with "unsubscribe" or visit https://closeboost.ai/unsubscribe';
-  const bodyWithFooter = trimmed + UNSUBSCRIBE_FOOTER;
-
   const admin = createAdminClient();
   const orgId = myMembership.organization_id;
 
@@ -102,7 +99,7 @@ export async function POST(request: NextRequest) {
       await sendGmailMessage(accessToken, {
         to: to.trim(),
         subject: subject.trim(),
-        body: bodyWithFooter,
+        body: trimmed,
         fromEmail: conn.email,
       });
     } else if (conn.provider === 'outlook') {
@@ -110,7 +107,7 @@ export async function POST(request: NextRequest) {
         to: to.trim(),
         toName: typeof toName === 'string' ? toName.trim() : undefined,
         subject: subject.trim(),
-        body: bodyWithFooter,
+        body: trimmed,
       });
     } else {
       return NextResponse.json({ error: 'Unsupported provider' }, { status: 400 });

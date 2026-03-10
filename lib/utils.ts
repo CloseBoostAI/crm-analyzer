@@ -5,6 +5,22 @@ export function cn(...inputs: ClassValue[]) {
   return twMerge(clsx(inputs))
 }
 
+/** Convert HTML to plain text: strip tags and decode entities (e.g. &lt; &gt; &amp;) */
+export function htmlToPlainText(html: string): string {
+  if (!html || typeof html !== 'string') return '';
+  let text = html
+    .replace(/<[^>]*>/g, ' ')
+    .replace(/&#(\d+);/g, (_, n) => String.fromCharCode(parseInt(n, 10)))
+    .replace(/&#x([0-9a-fA-F]+);/g, (_, n) => String.fromCharCode(parseInt(n, 16)));
+  const entities: Record<string, string> = {
+    '&lt;': '<', '&gt;': '>', '&amp;': '&', '&quot;': '"', '&apos;': "'", '&nbsp;': ' ',
+  };
+  for (const [k, v] of Object.entries(entities)) {
+    text = text.replace(new RegExp(k, 'g'), v);
+  }
+  return text.replace(/\s+/g, ' ').trim();
+}
+
 export type CRMLog = {
   customerId: string;
   timestamp: string;

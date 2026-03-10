@@ -16,7 +16,7 @@ import {
   CollapsibleContent,
   CollapsibleTrigger,
 } from '@/components/ui/collapsible';
-import { getDealDisplayName, getDealStageColor } from '@/lib/utils';
+import { getDealDisplayName, getDealStageColor, htmlToPlainText } from '@/lib/utils';
 import {
   FileText,
   Mail,
@@ -411,8 +411,8 @@ export function DealDetailsDialog({ deal, open, onOpenChange, onNotesSaved }: Pr
                                     </p>
                                   </div>
                                   <p className="text-xs text-muted-foreground whitespace-pre-wrap break-words">
-                                    {((msg.bodyText || '').replace(/\s+/g, ' ').trim().slice(0, 500))}
-                                    {((msg.bodyText || '').replace(/\s+/g, ' ').trim().length > 500) ? '...' : ''}
+                                    {htmlToPlainText(msg.bodyText || '').replace(/\s+/g, ' ').trim().slice(0, 500)}
+                                    {htmlToPlainText(msg.bodyText || '').replace(/\s+/g, ' ').trim().length > 500 ? '...' : ''}
                                   </p>
                                 </div>
                               ))}

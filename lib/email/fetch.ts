@@ -3,6 +3,7 @@
  */
 
 import { createAdminClient } from '@/lib/supabase/admin';
+import { htmlToPlainText } from '@/lib/utils';
 import {
   listGmailMessages,
   getGmailMessage,
@@ -345,7 +346,7 @@ export async function fetchEmailForReply(
         senderEmail: parsed.from,
         senderName: extractSenderName(parsed.fromRaw) || null,
         subject: parsed.subject,
-        bodyText: parsed.bodyText || parsed.bodyHtml || '',
+        bodyText: htmlToPlainText(parsed.bodyText || parsed.bodyHtml || ''),
         receivedAt: parsed.date ? new Date(parsed.date).toISOString() : new Date().toISOString(),
       },
     ];
@@ -365,7 +366,7 @@ export async function fetchEmailForReply(
             senderEmail: p.from,
             senderName: extractSenderName(p.fromRaw) || null,
             subject: p.subject,
-            bodyText: p.bodyText || p.bodyHtml || '',
+            bodyText: htmlToPlainText(p.bodyText || p.bodyHtml || ''),
             receivedAt: p.date ? new Date(p.date).toISOString() : new Date().toISOString(),
           });
         } catch {
@@ -411,7 +412,7 @@ export async function fetchEmailForReply(
           senderEmail: p.from,
           senderName: extractSenderName(p.fromRaw) || null,
           subject: p.subject,
-          bodyText: p.bodyText || p.bodyHtml || '',
+          bodyText: htmlToPlainText(p.bodyText || p.bodyHtml || ''),
           receivedAt: p.date ? new Date(p.date).toISOString() : new Date().toISOString(),
         };
       })

@@ -23,7 +23,7 @@ import {
   DialogTrigger,
 } from "@/components/ui/dialog";
 import { toast } from "sonner";
-import { type Customer, type CRMLog, type Deal, getDealStageColor, getDealDisplayName, getDealStageLabel, UNIVERSAL_DEAL_STAGES, matchDealStage, computeDealPriorities } from '@/lib/utils';
+import { type Customer, type CRMLog, type Deal, getDealStageColor, getDealDisplayName, getDealStageLabel, UNIVERSAL_DEAL_STAGES, matchDealStage, computeDealPriorities, htmlToPlainText } from '@/lib/utils';
 import { Slider } from "@/components/ui/slider";
 import { FileText, CheckSquare, Trash2, Pencil, ArrowUp, ArrowDown, ArrowUpDown, Mail, Phone, Calendar, Clock, Send, Sparkles, AlertTriangle, Eye, X, Target, Plus, Users, Inbox, Check, Reply, RefreshCw } from "lucide-react";
 import { Input } from "@/components/ui/input";
@@ -2400,7 +2400,8 @@ OUTPUT: The complete email only — greeting, body (label → Miner line → no-
                       )}
                       {(email.bodyText || email.bodyHtml) && (
                         <div className="mt-2 pt-2 border-t text-sm text-muted-foreground line-clamp-3">
-                          {email.bodyText?.trim() || (email.bodyHtml ? email.bodyHtml.replace(/<[^>]+>/g, ' ').replace(/\s+/g, ' ').trim().slice(0, 350) : '')}
+                          {htmlToPlainText(email.bodyText || email.bodyHtml || '').slice(0, 350)}
+                          {htmlToPlainText(email.bodyText || email.bodyHtml || '').length > 350 ? '...' : ''}
                         </div>
                       )}
                     </div>

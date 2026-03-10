@@ -2,6 +2,7 @@ import { createClient } from '@/lib/supabase/server';
 import { createAdminClient } from '@/lib/supabase/admin';
 import { NextRequest, NextResponse } from 'next/server';
 import { fetchEmailsForOrg, parseOauthEmailId, fetchThreadForDealEmail } from '@/lib/email/fetch';
+import { htmlToPlainText } from '@/lib/utils';
 
 export type ThreadMessage = {
   senderEmail: string;
@@ -169,7 +170,7 @@ export async function GET(
         });
       } else {
         // Fallback: single message
-        const body = (seed.bodyText || '') || (seed.bodyHtml || '').replace(/<[^>]*>/g, '');
+        const body = htmlToPlainText(seed.bodyText || seed.bodyHtml || '');
         threads.push({
           id: seed.id,
           subject: seed.subject,
@@ -179,7 +180,7 @@ export async function GET(
         });
       }
     } else {
-      const body = (seed.bodyText || '') || (seed.bodyHtml || '').replace(/<[^>]*>/g, '');
+      const body = htmlToPlainText(seed.bodyText || seed.bodyHtml || '');
       threads.push({
         id: seed.id,
         subject: seed.subject,

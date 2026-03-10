@@ -1,21 +1,25 @@
 import { createClient } from '@/lib/supabase/server';
 import { createAdminClient } from '@/lib/supabase/admin';
 import { NextRequest, NextResponse } from 'next/server';
-import { fetchEmailsForOrg } from '@/lib/email/fetch';
+import { fetchEmailsForOrg, parseOauthEmailId, fetchThreadForDealEmail } from '@/lib/email/fetch';
 
-export type DealEmail = {
-  id: string;
+export type ThreadMessage = {
   senderEmail: string;
   senderName: string | null;
-  toEmail: string;
-  subject: string;
-  bodyText: string | null;
-  bodyHtml: string | null;
-  status: 'pending' | 'acknowledged' | 'replied';
+  bodyText: string;
   receivedAt: string;
+  isFromUser: boolean;
 };
 
-/** GET /api/org/deals/[id]/emails - Fetch email exchanges for a deal */
+export type DealEmailThread = {
+  id: string;
+  subject: string;
+  status: 'pending' | 'acknowledged' | 'replied';
+  receivedAt: string;
+  messages: ThreadMessage[];
+};
+
+/** GET /api/org/deals/[id]/emails - Fetch email exchanges for a deal (full threads: customer + user replies) */
 export async function GET(
   _request: NextRequest,
   { params }: { params: Promise<{ id: string }> }
@@ -42,7 +46,6 @@ export async function GET(
 
   const admin = createAdminClient();
 
-  // Verify deal exists and user has access (deal owner or org member)
   const { data: deal } = await admin
     .from('deals')
     .select('id, user_id')
@@ -64,75 +67,133 @@ export async function GET(
 
   const orgId = myMembership.organization_id;
 
-  // 1. Webhook emails: inbound_emails with deal_id = dealId
+  type SeedEmail = { id: string; connectionId?: string; messageId?: string; subject: string; status: string; receivedAt: string; bodyText?: string | null; bodyHtml?: string | null; senderEmail: string; senderName?: string | null };
+  const seeds: SeedEmail[] = [];
+
+  // 1. Webhook emails (no connection - single message only)
   const { data: webhookRows } = await admin
     .from('inbound_emails')
-    .select('id, sender_email, sender_name, to_email, subject, body_text, body_html, status, received_at')
+    .select('id, sender_email, sender_name, subject, body_text, body_html, status, received_at')
     .eq('organization_id', orgId)
     .eq('deal_id', dealId)
+    .is('connection_id', null)
+    .is('message_id', null)
     .order('received_at', { ascending: false });
 
-  const webhookEmails: DealEmail[] = (webhookRows || []).map((row) => ({
-    id: row.id,
-    senderEmail: row.sender_email || '',
-    senderName: row.sender_name,
-    toEmail: row.to_email || '',
-    subject: row.subject || '',
-    bodyText: row.body_text,
-    bodyHtml: row.body_html,
-    status: (row.status || 'pending') as 'pending' | 'acknowledged' | 'replied',
-    receivedAt: row.received_at,
-  }));
+  for (const row of webhookRows || []) {
+    seeds.push({
+      id: row.id,
+      subject: row.subject || '',
+      status: (row.status || 'pending') as 'pending' | 'acknowledged' | 'replied',
+      receivedAt: row.received_at,
+      bodyText: row.body_text,
+      bodyHtml: row.body_html,
+      senderEmail: row.sender_email || '',
+      senderName: row.sender_name,
+    });
+  }
 
-  // 2. OAuth emails: fetch org emails and filter by dealId
+  // 2. OAuth emails (id = connectionId:messageId)
   const oauthEmails = await fetchEmailsForOrg(orgId, undefined, 100);
-  const oauthForDeal = oauthEmails
-    .filter((e) => e.dealId === dealId)
-    .map((e): DealEmail => ({
-      id: e.id,
-      senderEmail: e.senderEmail,
-      senderName: e.senderName,
-      toEmail: e.toEmail,
-      subject: e.subject,
-      bodyText: e.bodyText,
-      bodyHtml: e.bodyHtml,
-      status: e.status,
-      receivedAt: e.receivedAt,
-    }));
+  for (const e of oauthEmails.filter((x) => x.dealId === dealId)) {
+    const parsed = parseOauthEmailId(e.id);
+    if (parsed) {
+      seeds.push({
+        id: e.id,
+        connectionId: parsed.connectionId,
+        messageId: parsed.messageId,
+        subject: e.subject,
+        status: e.status,
+        receivedAt: e.receivedAt,
+        bodyText: e.bodyText,
+        bodyHtml: e.bodyHtml,
+        senderEmail: e.senderEmail,
+        senderName: e.senderName,
+      });
+    }
+  }
 
-  // 3. Synced OAuth emails in inbound_emails (connection_id + message_id set)
+  // 3. Synced OAuth emails (have connection_id, message_id)
   const { data: syncedRows } = await admin
     .from('inbound_emails')
-    .select('id, sender_email, sender_name, to_email, subject, body_text, body_html, status, received_at')
+    .select('id, connection_id, message_id, sender_email, sender_name, subject, body_text, body_html, status, received_at')
     .eq('organization_id', orgId)
     .eq('deal_id', dealId)
     .not('connection_id', 'is', null)
+    .not('message_id', 'is', null)
     .order('received_at', { ascending: false });
 
-  const syncedEmails: DealEmail[] = (syncedRows || []).map((row) => ({
-    id: row.id,
-    senderEmail: row.sender_email || '',
-    senderName: row.sender_name,
-    toEmail: row.to_email || '',
-    subject: row.subject || '',
-    bodyText: row.body_text,
-    bodyHtml: row.body_html,
-    status: (row.status || 'pending') as 'pending' | 'acknowledged' | 'replied',
-    receivedAt: row.received_at,
-  }));
+  for (const row of syncedRows || []) {
+    seeds.push({
+      id: row.id,
+      connectionId: row.connection_id,
+      messageId: row.message_id,
+      subject: row.subject || '',
+      status: (row.status || 'pending') as 'pending' | 'acknowledged' | 'replied',
+      receivedAt: row.received_at,
+      bodyText: row.body_text,
+      bodyHtml: row.body_html,
+      senderEmail: row.sender_email || '',
+      senderName: row.sender_name,
+    });
+  }
 
-  // Dedupe by id (OAuth ids are connectionId:messageId, synced use UUID)
-  const seen = new Set<string>();
-  const combined = [...webhookEmails, ...oauthForDeal, ...syncedEmails]
-    .filter((e) => {
-      if (seen.has(e.id)) return false;
-      seen.add(e.id);
-      return true;
-    })
-    .sort((a, b) => new Date(b.receivedAt).getTime() - new Date(a.receivedAt).getTime());
+  // Dedupe seeds by thread key (connectionId:messageId or id for webhook)
+  const seenKeys = new Set<string>();
+  const uniqueSeeds = seeds.filter((s) => {
+    const key = s.connectionId && s.messageId ? `${s.connectionId}:${s.messageId}` : s.id;
+    if (seenKeys.has(key)) return false;
+    seenKeys.add(key);
+    return true;
+  });
+
+  const threads: DealEmailThread[] = [];
+
+  for (const seed of uniqueSeeds) {
+    if (seed.connectionId && seed.messageId) {
+      const threadData = await fetchThreadForDealEmail(
+        seed.connectionId,
+        seed.messageId,
+        user.id,
+        orgId
+      );
+      if (threadData) {
+        threads.push({
+          id: seed.id,
+          subject: threadData.subject,
+          status: seed.status as 'pending' | 'acknowledged' | 'replied',
+          receivedAt: threadData.messages.length > 0
+            ? threadData.messages[threadData.messages.length - 1].receivedAt
+            : seed.receivedAt,
+          messages: threadData.messages,
+        });
+      } else {
+        // Fallback: single message
+        const body = (seed.bodyText || '') || (seed.bodyHtml || '').replace(/<[^>]*>/g, '');
+        threads.push({
+          id: seed.id,
+          subject: seed.subject,
+          status: seed.status as 'pending' | 'acknowledged' | 'replied',
+          receivedAt: seed.receivedAt,
+          messages: [{ senderEmail: seed.senderEmail, senderName: seed.senderName || null, bodyText: body, receivedAt: seed.receivedAt, isFromUser: false }],
+        });
+      }
+    } else {
+      const body = (seed.bodyText || '') || (seed.bodyHtml || '').replace(/<[^>]*>/g, '');
+      threads.push({
+        id: seed.id,
+        subject: seed.subject,
+        status: seed.status as 'pending' | 'acknowledged' | 'replied',
+        receivedAt: seed.receivedAt,
+        messages: [{ senderEmail: seed.senderEmail, senderName: seed.senderName || null, bodyText: body, receivedAt: seed.receivedAt, isFromUser: false }],
+      });
+    }
+  }
+
+  threads.sort((a, b) => new Date(b.receivedAt).getTime() - new Date(a.receivedAt).getTime());
 
   return NextResponse.json(
-    { emails: combined },
+    { threads },
     { headers: { 'Cache-Control': 'no-store, max-age=0' } }
   );
 }

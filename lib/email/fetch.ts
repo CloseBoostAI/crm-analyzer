@@ -431,3 +431,58 @@ export async function fetchEmailForReply(
 
   return null;
 }
+
+/** Fetch full email thread for deal activity (customer + user replies).
+ * Returns messages in chronological order with isFromUser flag. */
+export async function fetchThreadForDealEmail(
+  connectionId: string,
+  messageId: string,
+  userId: string,
+  organizationId: string
+): Promise<{
+  subject: string;
+  messages: Array<{
+    senderEmail: string;
+    senderName: string | null;
+    bodyText: string;
+    receivedAt: string;
+    isFromUser: boolean;
+  }>;
+} | null> {
+  const admin = createAdminClient();
+
+  const { data: members } = await admin
+    .from('organization_members')
+    .select('user_id')
+    .eq('organization_id', organizationId);
+  const userIds = (members || []).map((m: { user_id: string }) => m.user_id);
+  const { data: connections } = await admin
+    .from('email_connections')
+    .select('email')
+    .in('user_id', userIds);
+  const orgEmails = new Set(
+    (connections || []).map((c: { email: string }) => c.email?.toLowerCase()).filter(Boolean)
+  );
+
+  const result = await fetchEmailForReply(
+    connectionId,
+    messageId,
+    userId,
+    organizationId
+  );
+
+  if (!result) return null;
+
+  const messages = result.threadEmails.map((m) => ({
+    senderEmail: m.senderEmail,
+    senderName: m.senderName,
+    bodyText: m.bodyText,
+    receivedAt: m.receivedAt,
+    isFromUser: orgEmails.has(m.senderEmail?.toLowerCase() || ''),
+  }));
+
+  return {
+    subject: result.subject,
+    messages,
+  };
+}

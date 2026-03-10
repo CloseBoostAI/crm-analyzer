@@ -36,16 +36,20 @@ import {
 } from 'lucide-react';
 import { toast } from 'sonner';
 
-type DealEmail = {
-  id: string;
+type ThreadMessage = {
   senderEmail: string;
   senderName: string | null;
-  toEmail: string;
+  bodyText: string;
+  receivedAt: string;
+  isFromUser: boolean;
+};
+
+type DealEmailThread = {
+  id: string;
   subject: string;
-  bodyText: string | null;
-  bodyHtml: string | null;
   status: 'pending' | 'acknowledged' | 'replied';
   receivedAt: string;
+  messages: ThreadMessage[];
 };
 
 export type DealForDialog = {
@@ -89,7 +93,7 @@ export function DealDetailsDialog({ deal, open, onOpenChange, onNotesSaved }: Pr
   const [notes, setNotes] = useState('');
   const [savingNotes, setSavingNotes] = useState(false);
   const [activeTab, setActiveTab] = useState<'overview' | 'activities'>('overview');
-  const [dealEmails, setDealEmails] = useState<DealEmail[]>([]);
+  const [dealThreads, setDealThreads] = useState<DealEmailThread[]>([]);
   const [emailsLoading, setEmailsLoading] = useState(false);
 
   useEffect(() => {
@@ -103,12 +107,12 @@ export function DealDetailsDialog({ deal, open, onOpenChange, onNotesSaved }: Pr
       const res = await fetch(`/api/org/deals/${deal.id}/emails`);
       if (res.ok) {
         const data = await res.json();
-        setDealEmails(data.emails || []);
+        setDealThreads(data.threads || []);
       } else {
-        setDealEmails([]);
+        setDealThreads([]);
       }
     } catch {
-      setDealEmails([]);
+      setDealThreads([]);
     } finally {
       setEmailsLoading(false);
     }
@@ -352,12 +356,12 @@ export function DealDetailsDialog({ deal, open, onOpenChange, onNotesSaved }: Pr
                     </Button>
                   </CardHeader>
                   <CardContent>
-                    {emailsLoading && dealEmails.length === 0 ? (
+                    {emailsLoading && dealThreads.length === 0 ? (
                       <div className="flex items-center justify-center py-8 text-muted-foreground">
                         <Loader2 className="h-6 w-6 animate-spin mr-2" />
                         Loading emails...
                       </div>
-                    ) : dealEmails.length === 0 ? (
+                    ) : dealThreads.length === 0 ? (
                       <div className="text-center py-8 text-muted-foreground">
                         <Inbox className="h-10 w-10 mx-auto mb-2 opacity-50" />
                         <p className="text-sm font-medium">No email exchanges yet</p>
@@ -366,42 +370,53 @@ export function DealDetailsDialog({ deal, open, onOpenChange, onNotesSaved }: Pr
                         </p>
                       </div>
                     ) : (
-                      <div className="space-y-3 max-h-[400px] overflow-y-auto">
-                        {dealEmails.map((email) => (
+                      <div className="space-y-4 max-h-[400px] overflow-y-auto">
+                        {dealThreads.map((thread) => (
                           <div
-                            key={email.id}
-                            className="border rounded-lg p-3 space-y-1.5 text-sm"
+                            key={thread.id}
+                            className="border rounded-lg overflow-hidden"
                           >
-                            <div className="flex items-start justify-between gap-2">
-                              <div className="min-w-0 flex-1">
-                                <p className="font-medium truncate">
-                                  {email.senderName || email.senderEmail}
-                                </p>
-                                <p className="text-xs text-muted-foreground truncate">
-                                  {email.subject || '(no subject)'}
-                                </p>
-                              </div>
+                            <div className="flex items-center justify-between gap-2 px-3 py-2 bg-muted/50 border-b">
+                              <p className="text-sm font-medium truncate">
+                                {thread.subject || '(no subject)'}
+                              </p>
                               <span
                                 className={`shrink-0 text-xs px-2 py-0.5 rounded ${
-                                  email.status === 'pending'
+                                  thread.status === 'pending'
                                     ? 'bg-amber-100 text-amber-800 dark:bg-amber-900/50 dark:text-amber-200'
-                                    : email.status === 'acknowledged'
+                                    : thread.status === 'acknowledged'
                                     ? 'bg-blue-100 text-blue-800 dark:bg-blue-900/50 dark:text-blue-200'
                                     : 'bg-green-100 text-green-800 dark:bg-green-900/50 dark:text-green-200'
                                 }`}
                               >
-                                {email.status}
+                                {thread.status}
                               </span>
                             </div>
-                            <p className="text-xs text-muted-foreground">
-                              {new Date(email.receivedAt).toLocaleString()}
-                            </p>
-                            {(email.bodyText || email.bodyHtml) && (
-                              <p className="text-xs text-muted-foreground line-clamp-2 mt-1">
-                                {(email.bodyText || (email.bodyHtml || '').replace(/<[^>]*>/g, '')).replace(/\s+/g, ' ').trim().slice(0, 150)}
-                                {(email.bodyText || (email.bodyHtml || '').replace(/<[^>]*>/g, '')).replace(/\s+/g, ' ').trim().length > 150 ? '...' : ''}
-                              </p>
-                            )}
+                            <div className="divide-y">
+                              {thread.messages.map((msg, i) => (
+                                <div
+                                  key={i}
+                                  className={`p-3 text-sm ${
+                                    msg.isFromUser
+                                      ? 'bg-primary/5 border-l-2 border-l-primary'
+                                      : 'bg-background'
+                                  }`}
+                                >
+                                  <div className="flex items-center justify-between gap-2 mb-1">
+                                    <p className="font-medium text-xs">
+                                      {msg.isFromUser ? 'You' : (msg.senderName || msg.senderEmail)}
+                                    </p>
+                                    <p className="text-xs text-muted-foreground">
+                                      {new Date(msg.receivedAt).toLocaleString()}
+                                    </p>
+                                  </div>
+                                  <p className="text-xs text-muted-foreground whitespace-pre-wrap break-words">
+                                    {((msg.bodyText || '').replace(/\s+/g, ' ').trim().slice(0, 500))}
+                                    {((msg.bodyText || '').replace(/\s+/g, ' ').trim().length > 500) ? '...' : ''}
+                                  </p>
+                                </div>
+                              ))}
+                            </div>
                           </div>
                         ))}
                       </div>

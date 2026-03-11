@@ -360,11 +360,12 @@ export async function fetchEmailForReply(
         { headers: { Authorization: `Bearer ${accessToken}` } }
       ).then((r) => (r.ok ? r.json() : { messages: [] }));
       const threadMessages = threadList?.messages || [];
+      const seenIds = new Set<string>([messageId]);
       for (const m of threadMessages) {
-        if (m.id === messageId) continue;
+        if (seenIds.has(m.id)) continue;
+        seenIds.add(m.id);
         try {
-          const t = await getGmailMessage(accessToken, m.id);
-          const p = parseGmailMessage(t);
+          const p = parseGmailMessage(m);
           threadEmails.push({
             senderEmail: p.from,
             senderName: extractSenderName(p.fromRaw) || null,

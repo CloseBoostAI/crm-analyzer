@@ -5,6 +5,51 @@ export function cn(...inputs: ClassValue[]) {
   return twMerge(clsx(inputs))
 }
 
+/**
+ * Strip quoted reply/original message from email body.
+ * Returns only the new content the sender wrote (before "On ... wrote:", "-----Original Message-----", etc.)
+ */
+export function extractReplyBody(text: string): string {
+  if (!text || typeof text !== 'string') return '';
+  const trimmed = text.trim();
+  if (!trimmed) return '';
+
+  // Common reply markers - find the earliest one and take content before it
+  const markers = [
+    /\n\s*On\s+[\s\S]*?wrote:\s*/i,           // Gmail/Apple: "On ... wrote:"
+    /\n-{3,}\s*Original Message\s*-{3,}/i,     // Outlook: -----Original Message-----
+    /\n-{5,}\s*Original Message\s*-{5,}/i,
+    /\nFrom:\s*[\s\S]*?To:\s*[\s\S]*?Subject:/i, // Outlook reply header
+    /\n_{5,}\s*Original Message\s*_{5,}/i,
+    /\n>+\s*From:\s*[\s\S]*?Subject:/i,        // Quoted Outlook header
+  ];
+
+  let earliest = trimmed.length;
+  for (const re of markers) {
+    const m = trimmed.match(re);
+    if (m && m.index !== undefined && m.index < earliest) {
+      earliest = m.index;
+    }
+  }
+
+  let result = earliest < trimmed.length ? trimmed.slice(0, earliest) : trimmed;
+
+  // Strip trailing lines that are entirely "> " quoted (leftover from partial matches)
+  const lines = result.split('\n');
+  let cut = lines.length;
+  for (let i = lines.length - 1; i >= 0; i--) {
+    const t = lines[i].trim();
+    if (!t) continue;
+    if (!/^>\s*/.test(lines[i])) {
+      cut = i + 1; // Keep this line and everything before
+      break;
+    }
+  }
+  result = lines.slice(0, cut).join('\n');
+
+  return result.replace(/\s+/g, ' ').trim();
+}
+
 /** Convert HTML to plain text: strip tags and decode entities (e.g. &lt; &gt; &amp;) */
 export function htmlToPlainText(html: string): string {
   if (!html || typeof html !== 'string') return '';

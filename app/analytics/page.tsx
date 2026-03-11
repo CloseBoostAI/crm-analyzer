@@ -480,6 +480,7 @@ export default function AnalyticsPage() {
   const [sendingReplyForId, setSendingReplyForId] = useState<string | null>(null);
   const [generatedReplyForId, setGeneratedReplyForId] = useState<string | null>(null);
   const [generatedReplyText, setGeneratedReplyText] = useState('');
+  const [emailsSubTab, setEmailsSubTab] = useState<'inbox' | 'followups'>('inbox');
 
   const filteredDeals = useMemo(() => {
     if (!memberFilter || !currentUserId) return deals;
@@ -628,7 +629,7 @@ export default function AnalyticsPage() {
     observer.observe(el);
     update();
     return () => observer.disconnect();
-  }, [activeTab, filteredDeals.length]);
+  }, [activeTab, emailsSubTab, filteredDeals.length]);
 
   useEffect(() => {
     const fetchData = async () => {
@@ -2150,15 +2151,17 @@ OUTPUT: The complete email only — greeting, body (label → Miner line → no-
                 Emails
               </CardTitle>
               <CardDescription>
-                Inbox: respond to client emails. Follow-ups: generate personalized emails for your deals.
+                Respond to client emails or generate follow-up emails for your deals.
               </CardDescription>
             </CardHeader>
             <CardContent>
-              <div className="grid grid-cols-1 lg:grid-cols-2 gap-6">
-                {/* Left: Client Inbox */}
-                <div className="min-w-0">
-                  <h3 className="text-sm font-semibold mb-3">Client Inbox</h3>
-                <div className="flex items-center gap-2 mb-4">
+              <Tabs value={emailsSubTab} onValueChange={(v) => setEmailsSubTab(v as 'inbox' | 'followups')} className="space-y-4">
+                <TabsList className="bg-muted/50">
+                  <TabsTrigger value="inbox">Client Inbox</TabsTrigger>
+                  <TabsTrigger value="followups">Follow-ups</TabsTrigger>
+                </TabsList>
+                <TabsContent value="inbox" className="mt-4 space-y-4">
+                <div className="flex items-center gap-2">
                   <Select value={inboundEmailFilter} onValueChange={(v) => setInboundEmailFilter(v as typeof inboundEmailFilter)}>
                     <SelectTrigger className="w-[180px]">
                       <SelectValue />
@@ -2300,54 +2303,18 @@ OUTPUT: The complete email only — greeting, body (label → Miner line → no-
                   </div>
                 )}
                 </div>
+                </TabsContent>
 
-                {/* Right: Generated email (top) + Follow-up emails (bottom) */}
-                <div className="flex flex-col gap-6 min-w-0">
-                  {/* Top right: Generated email panel */}
-                  <div className="border rounded-lg p-4 min-h-[200px] flex flex-col">
-                    {generatedEmail ? (
-                      <div className="space-y-4 flex-1">
-                        <div className="rounded-md border p-4 bg-muted/50 min-h-[160px]">
-                          <pre className="whitespace-pre-wrap font-sans text-sm">
-                            {generatedEmail}
-                          </pre>
-                        </div>
-                        <div className="flex justify-end gap-2 flex-wrap">
-                          <Button variant="outline" size="sm" onClick={() => setGeneratedEmail('')}>Clear</Button>
-                          <Button size="sm" onClick={() => generateEmail(selectedCustomer)} disabled={generating}>Regenerate</Button>
-                          <Button size="sm" onClick={() => { navigator.clipboard.writeText(generatedEmail); toast.success('Email copied to clipboard!'); }} disabled={!generatedEmail} className="bg-green-600 hover:bg-green-700 text-white">Copy</Button>
-                          <Button size="sm" onClick={async () => {
-                            if (!selectedCustomer?.email?.trim()) { toast.error('No email address for this contact.'); return; }
-                            setSendingEmail(true);
-                            try {
-                              const res = await fetch('/api/org/send-email', { method: 'POST', headers: { 'Content-Type': 'application/json' }, body: JSON.stringify({ to: selectedCustomer.email.trim(), toName: selectedCustomer.name || undefined, subject: 'Following up', body: generatedEmail }) });
-                              const data = await res.json();
-                              if (!res.ok) throw new Error(data.error || 'Failed to send');
-                              toast.success('Email sent successfully!');
-                            } catch (err: any) { toast.error(err?.message || 'Failed to send email'); } finally { setSendingEmail(false); }
-                          }} disabled={!generatedEmail || sendingEmail} className="bg-primary hover:bg-primary/90">
-                            {sendingEmail ? <><div className="mr-2 h-4 w-4 animate-spin rounded-full border-2 border-white border-t-transparent" /> Sending...</> : <><Send className="h-4 w-4 mr-2" /> Send</>}
-                          </Button>
-                        </div>
-                      </div>
-                    ) : (
-                      <div className="flex items-center justify-center flex-1 text-muted-foreground text-sm">
-                        Select a deal to generate an email
-                      </div>
-                    )}
+                <TabsContent value="followups" className="mt-4 space-y-4">
+                <div className="mb-4">
+                  <label className="text-sm font-medium">Email Tone</label>
+                  <div className="flex items-center gap-4 mt-2">
+                    <Slider value={[emailTone]} onValueChange={(value) => setEmailTone(value[0])} max={100} step={33} className="w-full max-w-md" />
+                    <span className="text-sm text-muted-foreground shrink-0">{getToneDescription(emailTone)}</span>
                   </div>
-
-                  {/* Bottom right: Generate follow-up emails */}
-                  <div>
-                    <h3 className="text-sm font-semibold mb-3">Generate follow-up emails</h3>
-                    <div className="mb-3">
-                      <label className="text-sm font-medium">Tone</label>
-                      <div className="flex items-center gap-4 mt-2">
-                        <Slider value={[emailTone]} onValueChange={(value) => setEmailTone(value[0])} max={100} step={33} className="w-full max-w-[200px]" />
-                        <span className="text-sm text-muted-foreground shrink-0">{getToneDescription(emailTone)}</span>
-                      </div>
-                    </div>
-                    <div className="min-w-0 flex flex-col">
+                </div>
+                <div className="grid grid-cols-1 xl:grid-cols-[2fr_1fr] gap-6 min-w-0">
+                <div className="min-w-0 flex flex-col">
                     {emailGenClientWidth > 0 && emailGenScrollWidth > emailGenClientWidth && (
                       <div ref={emailGenTopScrollRef} onScroll={syncEmailTopScroll} className="overflow-x-auto overflow-y-hidden mb-0 scrollbar-light shrink-0">
                         <div style={{ width: Math.max(1, emailGenScrollWidth), height: 1 }} />
@@ -2446,12 +2413,42 @@ OUTPUT: The complete email only — greeting, body (label → Miner line → no-
                       ))}
                     </TableBody>
                   </Table>
-                      </div>
                     </div>
                   </div>
                 </div>
+                <div className="border rounded-lg p-4 min-w-0">
+                  {generatedEmail ? (
+                    <div className="space-y-4">
+                      <div className="rounded-md border p-4 bg-muted/50 min-h-[300px]">
+                        <pre className="whitespace-pre-wrap font-sans text-sm">{generatedEmail}</pre>
+                      </div>
+                      <div className="flex justify-end gap-2 flex-wrap">
+                        <Button variant="outline" size="sm" onClick={() => setGeneratedEmail('')}>Clear</Button>
+                        <Button size="sm" onClick={() => generateEmail(selectedCustomer)} disabled={generating}>Regenerate</Button>
+                        <Button size="sm" onClick={() => { navigator.clipboard.writeText(generatedEmail); toast.success('Email copied to clipboard!'); }} disabled={!generatedEmail} className="bg-green-600 hover:bg-green-700 text-white">Copy</Button>
+                        <Button size="sm" onClick={async () => {
+                          if (!selectedCustomer?.email?.trim()) { toast.error('No email address for this contact.'); return; }
+                          setSendingEmail(true);
+                          try {
+                            const res = await fetch('/api/org/send-email', { method: 'POST', headers: { 'Content-Type': 'application/json' }, body: JSON.stringify({ to: selectedCustomer.email.trim(), toName: selectedCustomer.name || undefined, subject: 'Following up', body: generatedEmail }) });
+                            const data = await res.json();
+                            if (!res.ok) throw new Error(data.error || 'Failed to send');
+                            toast.success('Email sent successfully!');
+                          } catch (err: any) { toast.error(err?.message || 'Failed to send email'); } finally { setSendingEmail(false); }
+                        }} disabled={!generatedEmail || sendingEmail} className="bg-primary hover:bg-primary/90">
+                          {sendingEmail ? <><div className="mr-2 h-4 w-4 animate-spin rounded-full border-2 border-white border-t-transparent" /> Sending...</> : <><Send className="h-4 w-4 mr-2" /> Send</>}
+                        </Button>
+                      </div>
+                    </div>
+                  ) : (
+                    <div className="flex items-center justify-center h-[300px] text-muted-foreground text-sm">
+                      Select a deal to generate an email
+                    </div>
+                  )}
+                </div>
               </div>
-            </div>
+                </TabsContent>
+              </Tabs>
             </CardContent>
           </Card>
         </TabsContent>

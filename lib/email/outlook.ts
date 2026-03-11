@@ -120,6 +120,22 @@ export async function listOutlookMessages(
   return res.json();
 }
 
+/** Search for messages from a sender (to find threads for webhook emails) */
+export async function searchOutlookMessagesFrom(
+  accessToken: string,
+  fromEmail: string,
+  top = 10
+): Promise<OutlookMessage[]> {
+  const escaped = fromEmail.replace(/'/g, "''");
+  const url = `https://graph.microsoft.com/v1.0/me/messages?$filter=(from/emailAddress/address eq '${escaped}')&$top=${top}&$select=id,conversationId,from,subject,receivedDateTime&$orderby=receivedDateTime desc`;
+  const res = await fetch(url, {
+    headers: { Authorization: `Bearer ${accessToken}` },
+  });
+  if (!res.ok) return [];
+  const data = (await res.json()) as OutlookMessageList;
+  return data.value || [];
+}
+
 /** List all messages in a conversation (inbox + sent) for full thread view */
 export async function listOutlookMessagesByConversation(
   accessToken: string,

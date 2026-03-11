@@ -186,6 +186,22 @@ export async function listGmailMessages(
   return res.json();
 }
 
+/** Search for messages from a sender (searches all mail including sent) to find threads */
+export async function searchGmailMessagesFrom(
+  accessToken: string,
+  fromEmail: string,
+  maxResults = 10
+): Promise<GmailMessageList> {
+  const q = `from:${fromEmail}`;
+  const params = new URLSearchParams({ maxResults: String(maxResults), q });
+  const url = `${GMAIL_API_BASE}/messages?${params.toString()}`;
+  const res = await fetch(url, {
+    headers: { Authorization: `Bearer ${accessToken}` },
+  });
+  if (!res.ok) return { messages: [] };
+  return res.json();
+}
+
 export async function getGmailMessage(accessToken: string, messageId: string): Promise<GmailMessage> {
   const url = `${GMAIL_API_BASE}/messages/${messageId}?format=full`;
   const res = await fetch(url, {

@@ -1,7 +1,7 @@
 import { createClient } from '@/lib/supabase/server';
 import { createAdminClient } from '@/lib/supabase/admin';
 import { NextRequest, NextResponse } from 'next/server';
-import { fetchEmailsForOrg, parseOauthEmailId, fetchThreadForDealEmail } from '@/lib/email/fetch';
+import { fetchEmailsForOrg, parseOauthEmailId, fetchThreadForDealEmail, findOAuthThreadBySender } from '@/lib/email/fetch';
 import { htmlToPlainText } from '@/lib/utils';
 
 export type ThreadMessage = {
@@ -187,14 +187,51 @@ export async function GET(
         });
       }
     } else {
-      const body = htmlToPlainText(seed.bodyText || seed.bodyHtml || '');
-      threads.push({
-        id: seed.id,
-        subject: seed.subject,
-        status: seed.status as 'pending' | 'acknowledged' | 'replied',
-        receivedAt: seed.receivedAt,
-        messages: [{ senderEmail: seed.senderEmail, senderName: seed.senderName || null, bodyText: body, receivedAt: seed.receivedAt, isFromUser: false }],
-      });
+      // Webhook email (no connection_id): try to find OAuth thread to get full conversation including user's reply
+      const oauthMatch = await findOAuthThreadBySender(orgId, seed.senderEmail);
+      if (oauthMatch) {
+        const threadData = await fetchThreadForDealEmail(
+          oauthMatch.connectionId,
+          oauthMatch.messageId,
+          user.id,
+          orgId
+        );
+        if (threadData) {
+          const threadKey = threadData.threadId
+            ? `${oauthMatch.connectionId}:${threadData.threadId}`
+            : `${oauthMatch.connectionId}:${oauthMatch.messageId}`;
+          if (!seenThreadKeys.has(threadKey)) {
+            seenThreadKeys.add(threadKey);
+            threads.push({
+              id: seed.id,
+              subject: threadData.subject,
+              status: seed.status as 'pending' | 'acknowledged' | 'replied',
+              receivedAt: threadData.messages.length > 0
+                ? threadData.messages[threadData.messages.length - 1].receivedAt
+                : seed.receivedAt,
+              messages: threadData.messages,
+            });
+          }
+        } else {
+          const body = htmlToPlainText(seed.bodyText || seed.bodyHtml || '');
+          threads.push({
+            id: seed.id,
+            subject: seed.subject,
+            status: seed.status as 'pending' | 'acknowledged' | 'replied',
+            receivedAt: seed.receivedAt,
+            messages: [{ senderEmail: seed.senderEmail, senderName: seed.senderName || null, bodyText: body, receivedAt: seed.receivedAt, isFromUser: false }],
+          });
+        }
+      } else {
+        const body = htmlToPlainText(seed.bodyText || seed.bodyHtml || '');
+        threads.push({
+          id: seed.id,
+          subject: seed.subject,
+          status: seed.status as 'pending' | 'acknowledged' | 'replied',
+          receivedAt: seed.receivedAt,
+          messages: [{ senderEmail: seed.senderEmail, senderName: seed.senderName || null, bodyText: body, receivedAt: seed.receivedAt, isFromUser: false }],
+        });
+      }
     }
   }
 

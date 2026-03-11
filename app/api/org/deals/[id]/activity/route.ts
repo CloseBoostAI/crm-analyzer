@@ -2,8 +2,7 @@ import { createClient } from '@/lib/supabase/server';
 import { createAdminClient } from '@/lib/supabase/admin';
 import { NextRequest, NextResponse } from 'next/server';
 import {
-  findOAuthThreadBySender,
-  findOAuthThreadByRecipient,
+  findAllOAuthThreadsWithContact,
   fetchThreadForDealEmail,
 } from '@/lib/email/fetch';
 import { extractReplyBody, htmlToPlainText } from '@/lib/utils';
@@ -70,13 +69,11 @@ export async function GET(
   }
 
   const allMessages: ActivityMessage[] = [];
+  const seenKeys = new Set<string>();
 
-  let oauthThread = await findOAuthThreadBySender(organizationId, contactEmail);
-  if (!oauthThread) {
-    oauthThread = await findOAuthThreadByRecipient(organizationId, contactEmail);
-  }
+  const oauthThreads = await findAllOAuthThreadsWithContact(organizationId, contactEmail);
 
-  if (oauthThread) {
+  for (const oauthThread of oauthThreads) {
     const thread = await fetchThreadForDealEmail(
       oauthThread.connectionId,
       oauthThread.messageId,
@@ -85,12 +82,18 @@ export async function GET(
     );
     if (thread) {
       for (const m of thread.messages) {
-        const stripped = extractReplyBody(m.bodyText || '');
-        if (stripped) {
+        const raw = m.bodyText || '';
+        const stripped = extractReplyBody(raw);
+        const displayText = stripped.trim() || raw.trim().slice(0, 500);
+        if (displayText) {
+          const dedupeKey = `${m.receivedAt}|${(m.senderEmail || '').toLowerCase()}|${displayText.slice(0, 80)}`;
+          if (seenKeys.has(dedupeKey)) continue;
+          seenKeys.add(dedupeKey);
+
           allMessages.push({
             senderEmail: m.senderEmail,
             senderName: m.senderName,
-            bodyText: stripped,
+            bodyText: displayText,
             receivedAt: m.receivedAt,
             isFromUser: m.isFromUser,
           });
@@ -111,11 +114,12 @@ export async function GET(
   for (const row of webhookRows || []) {
     const rawBody = row.body_text || htmlToPlainText(row.body_html || '') || '';
     const stripped = extractReplyBody(rawBody);
-    if (stripped) {
+    const displayText = stripped.trim() || rawBody.trim().slice(0, 500);
+    if (displayText) {
       allMessages.push({
         senderEmail: row.sender_email || '',
         senderName: row.sender_name,
-        bodyText: stripped,
+        bodyText: displayText,
         receivedAt: row.received_at,
         isFromUser: false,
       });

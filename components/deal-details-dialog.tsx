@@ -1,6 +1,6 @@
 'use client';
 
-import { useState, useEffect } from 'react';
+import { useState, useEffect, useCallback } from 'react';
 import {
   Dialog,
   DialogContent,
@@ -91,19 +91,24 @@ export function DealDetailsDialog({ deal, open, onOpenChange, onNotesSaved }: Pr
     if (deal) setNotes(deal.notes || '');
   }, [deal?.id, deal?.notes]);
 
-  useEffect(() => {
-    if (!deal?.id || !open) return;
-    if (!deal.email?.trim()) {
-      setActivityMessages([]);
-      return;
-    }
+  const fetchActivity = useCallback(() => {
+    if (!deal?.id || !deal.email?.trim()) return;
     setActivityLoading(true);
     fetch(`/api/org/deals/${deal.id}/activity`)
       .then((res) => res.json())
       .then((data) => setActivityMessages(data.messages || []))
       .catch(() => setActivityMessages([]))
       .finally(() => setActivityLoading(false));
-  }, [deal?.id, deal?.email, open]);
+  }, [deal?.id, deal?.email]);
+
+  useEffect(() => {
+    if (!deal?.id || !open) return;
+    if (!deal.email?.trim()) {
+      setActivityMessages([]);
+      return;
+    }
+    fetchActivity();
+  }, [deal?.id, deal?.email, open, fetchActivity]);
 
   const saveNotes = async () => {
     if (!deal || notes === (deal.notes || '')) return;
@@ -275,10 +280,20 @@ export function DealDetailsDialog({ deal, open, onOpenChange, onNotesSaved }: Pr
             {/* Center: Activity section */}
             <div className="lg:col-span-5">
               <Card className="h-full min-h-[300px] flex flex-col">
-                <CardHeader>
+                <CardHeader className="flex flex-row items-center justify-between space-y-0 pb-2">
                   <CardTitle className="text-sm font-medium flex items-center gap-2">
                     <MessageSquare className="h-4 w-4" /> Activity
                   </CardTitle>
+                  <Button
+                    variant="ghost"
+                    size="icon"
+                    className="h-8 w-8"
+                    onClick={fetchActivity}
+                    disabled={activityLoading || !deal?.email?.trim()}
+                    title="Refresh activity"
+                  >
+                    <RefreshCw className={`h-4 w-4 ${activityLoading ? 'animate-spin' : ''}`} />
+                  </Button>
                 </CardHeader>
                 <CardContent className="flex-1 overflow-hidden flex flex-col pt-0">
                   {activityLoading ? (

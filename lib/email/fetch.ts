@@ -437,6 +437,94 @@ export async function fetchEmailForReply(
   return null;
 }
 
+/** Find ALL OAuth threads with a contact across all org connections.
+ * Returns array of { connectionId, messageId } for merging full dialogue. */
+export async function findAllOAuthThreadsWithContact(
+  organizationId: string,
+  contactEmail: string
+): Promise<Array<{ connectionId: string; messageId: string; threadId: string | null }>> {
+  const admin = createAdminClient();
+
+  const { data: members } = await admin
+    .from('organization_members')
+    .select('user_id')
+    .eq('organization_id', organizationId);
+  const userIds = (members || []).map((m: { user_id: string }) => m.user_id);
+  if (userIds.length === 0) return [];
+
+  const { data: connections } = await admin
+    .from('email_connections')
+    .select('id, user_id, organization_id, provider, email, access_token, refresh_token, token_expires_at')
+    .in('user_id', userIds)
+    .not('access_token', 'is', null);
+
+  if (!connections?.length) return [];
+
+  const normalized = contactEmail.trim().toLowerCase();
+  if (!normalized) return [];
+
+  const results: Array<{ connectionId: string; messageId: string; threadId: string | null }> = [];
+  const seenThreadIds = new Set<string>();
+
+  for (const conn of connections as EmailConnection[]) {
+    try {
+      let accessToken = conn.access_token;
+      const expiresAt = conn.token_expires_at ? new Date(conn.token_expires_at).getTime() : 0;
+      const now = Date.now();
+      const bufferMs = 5 * 60 * 1000;
+
+      if (conn.refresh_token && (expiresAt === 0 || expiresAt < now + bufferMs)) {
+        const refreshed =
+          conn.provider === 'gmail'
+            ? await refreshGmailToken(conn.refresh_token)
+            : await refreshOutlookToken(conn.refresh_token);
+        accessToken = refreshed.access_token;
+        const tokenExpiresAt = refreshed.expires_in
+          ? new Date(Date.now() + refreshed.expires_in * 1000).toISOString()
+          : null;
+        await admin
+          .from('email_connections')
+          .update({
+            access_token: accessToken,
+            token_expires_at: tokenExpiresAt,
+            updated_at: new Date().toISOString(),
+          })
+          .eq('id', conn.id);
+      }
+
+      if (conn.provider === 'gmail') {
+        const fromList = await searchGmailMessagesFrom(accessToken, normalized, 15);
+        const toList = await searchGmailMessagesTo(accessToken, normalized, 15);
+        const allMsgs = [...(fromList.messages || []), ...(toList.messages || [])];
+        for (const m of allMsgs) {
+          const tid = m.threadId || null;
+          const key = tid ? `${conn.id}:${tid}` : `${conn.id}:${m.id}`;
+          if (!seenThreadIds.has(key)) {
+            seenThreadIds.add(key);
+            results.push({ connectionId: conn.id, messageId: m.id, threadId: tid });
+          }
+        }
+      } else if (conn.provider === 'outlook') {
+        const fromList = await searchOutlookMessagesFrom(accessToken, normalized, 15);
+        const toList = await searchOutlookMessagesTo(accessToken, normalized, 15);
+        const allMsgs = [...fromList, ...toList];
+        for (const m of allMsgs) {
+          if (!m?.id) continue;
+          const tid = (m as { conversationId?: string }).conversationId || null;
+          const key = tid ? `${conn.id}:${tid}` : `${conn.id}:${m.id}`;
+          if (!seenThreadIds.has(key)) {
+            seenThreadIds.add(key);
+            results.push({ connectionId: conn.id, messageId: m.id, threadId: tid });
+          }
+        }
+      }
+    } catch {
+      // Skip connection on error
+    }
+  }
+  return results;
+}
+
 /** Find an OAuth thread for a sender (for webhook emails that have no connection).
  * Returns { connectionId, messageId } if found, so we can fetch the full thread including user replies. */
 export async function findOAuthThreadBySender(

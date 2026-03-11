@@ -25,7 +25,7 @@ import {
 import { toast } from "sonner";
 import { type Customer, type CRMLog, type Deal, getDealStageColor, getDealDisplayName, getDealStageLabel, UNIVERSAL_DEAL_STAGES, matchDealStage, htmlToPlainText } from '@/lib/utils';
 import { Slider } from "@/components/ui/slider";
-import { FileText, CheckSquare, Trash2, Pencil, ArrowUp, ArrowDown, ArrowUpDown, Mail, Phone, Calendar, Clock, Send, Sparkles, AlertTriangle, Eye, X, Target, Plus, Users, Inbox, Check, Reply, RefreshCw } from "lucide-react";
+import { FileText, CheckSquare, Trash2, Pencil, ArrowUp, ArrowDown, ArrowUpDown, Mail, Phone, Calendar, Clock, Send, Sparkles, AlertTriangle, Eye, X, Target, Plus, Users, Inbox, Check, Reply, RefreshCw, ChevronDown, ChevronUp } from "lucide-react";
 import { Input } from "@/components/ui/input";
 import { Label } from "@/components/ui/label";
 import {
@@ -36,6 +36,7 @@ import {
   SelectValue,
 } from "@/components/ui/select";
 import { ScrollArea } from "@/components/ui/scroll-area";
+import { Collapsible, CollapsibleContent, CollapsibleTrigger } from "@/components/ui/collapsible";
 import {
   loadDeals,
   loadCustomers,
@@ -441,6 +442,7 @@ export default function AnalyticsPage() {
   const [dismissedTaskIds, setDismissedTaskIds] = useState<Set<string>>(new Set());
   const [taskCategoryFilter, setTaskCategoryFilter] = useState<TaskCategory | 'all'>('all');
   const [showAllSmartTasks, setShowAllSmartTasks] = useState(false);
+  const [savedTasksOpen, setSavedTasksOpen] = useState(false);
   const [taskSortColumn, setTaskSortColumn] = useState<'title' | 'status' | 'dueDate' | 'deal' | 'assignedTo' | null>(null);
   const [taskSortDirection, setTaskSortDirection] = useState<'asc' | 'desc'>('asc');
   const [emailTaskTarget, setEmailTaskTarget] = useState<SmartTask | null>(null);
@@ -1630,122 +1632,104 @@ OUTPUT: The complete email only — greeting, body (label → Miner line → no-
         <TabsContent value="tasks">
           <div className="space-y-6">
             {(() => {
+              const sortedSavedTasks = filteredTasks
+                .filter(t => settings.tasks.showCompleted || t.status !== 'COMPLETED')
+                .sort((a, b) => {
+                  if (!taskSortColumn) return 0;
+                  const dir = taskSortDirection === 'asc' ? 1 : -1;
+                  const statusOrder: Record<string, number> = { NOT_STARTED: 0, IN_PROGRESS: 1, WAITING: 2, COMPLETED: 3 };
+                  let av: string | number, bv: string | number;
+                  switch (taskSortColumn) {
+                    case 'title': av = a.title.toLowerCase(); bv = b.title.toLowerCase(); break;
+                    case 'status': av = statusOrder[a.status]; bv = statusOrder[b.status]; break;
+                    case 'dueDate': av = a.dueDate; bv = b.dueDate; break;
+                    case 'deal': av = (a.associatedDealName || '').toLowerCase(); bv = (b.associatedDealName || '').toLowerCase(); break;
+                    case 'assignedTo': av = a.assignedTo.toLowerCase(); bv = b.assignedTo.toLowerCase(); break;
+                    default: return 0;
+                  }
+                  if (av < bv) return -1 * dir;
+                  if (av > bv) return 1 * dir;
+                  return 0;
+                });
+              const savedTasksByCompany = Object.entries(
+                sortedSavedTasks.reduce<Record<string, Task[]>>((acc, t) => {
+                  const key = t.associatedDealName?.trim() || 'Unassigned';
+                  if (!acc[key]) acc[key] = [];
+                  acc[key].push(t);
+                  return acc;
+                }, {})
+              ).sort(([a], [b]) => (a === 'Unassigned' ? 1 : b === 'Unassigned' ? -1 : a.localeCompare(b)));
+
               const savedTasksSection = (
-                <Card>
-                  <CardHeader className="pb-3">
-                    <CardTitle className="font-heading text-lg">Saved Tasks</CardTitle>
-                    <CardDescription>
-                      {filteredTasks.length === 0
-                        ? 'No saved tasks yet — save recommendations below to track them here'
-                        : `${filteredTasks.filter(t => t.status !== 'COMPLETED').length} active, ${filteredTasks.filter(t => t.status === 'COMPLETED').length} completed`}
-                    </CardDescription>
-                  </CardHeader>
-                  {filteredTasks.length > 0 && (
-                    <CardContent className="pt-0">
-                      <Table>
-                        <TableHeader>
-                          <TableRow>
-                            {[
-                              { key: 'title' as const, label: 'Task' },
-                              { key: 'status' as const, label: 'Status' },
-                              { key: 'dueDate' as const, label: 'Due Date' },
-                              { key: 'deal' as const, label: 'Deal' },
-                              { key: 'assignedTo' as const, label: 'Assigned To' },
-                            ].map(({ key, label }) => {
-                              const isActive = taskSortColumn === key;
-                              const handleTaskSort = () => {
-                                if (!isActive) {
-                                  setTaskSortColumn(key);
-                                  setTaskSortDirection('asc');
-                                } else if (taskSortDirection === 'asc') {
-                                  setTaskSortDirection('desc');
-                                } else {
-                                  setTaskSortColumn(null);
-                                }
-                              };
-                              return (
-                                <TableHead key={key}>
-                                  <button
-                                    onClick={handleTaskSort}
-                                    className="flex items-center gap-1 hover:text-foreground transition-colors -my-1"
-                                  >
-                                    {label}
-                                    {isActive && taskSortDirection === 'asc' ? (
-                                      <ArrowUp className="h-3.5 w-3.5 text-blue-600" />
-                                    ) : isActive && taskSortDirection === 'desc' ? (
-                                      <ArrowDown className="h-3.5 w-3.5 text-blue-600" />
-                                    ) : (
-                                      <ArrowUpDown className="h-3.5 w-3.5 opacity-30" />
-                                    )}
+                <Collapsible open={savedTasksOpen} onOpenChange={setSavedTasksOpen} className="mb-4">
+                  <CollapsibleTrigger asChild>
+                    <Button variant="outline" className="w-full justify-between h-11 font-medium">
+                      <span className="flex items-center gap-2">
+                        <CheckSquare className="h-4 w-4" />
+                        Saved Tasks ({filteredTasks.filter(t => t.status !== 'COMPLETED').length} active)
+                      </span>
+                      {savedTasksOpen ? <ChevronUp className="h-4 w-4" /> : <ChevronDown className="h-4 w-4" />}
+                    </Button>
+                  </CollapsibleTrigger>
+                  <CollapsibleContent>
+                    <Card className="mt-2">
+                      <CardContent className="pt-4">
+                        {filteredTasks.length === 0 ? (
+                          <p className="text-sm text-muted-foreground text-center py-4">No saved tasks yet — save recommendations below to track them here</p>
+                        ) : (
+                          <div className="space-y-2">
+                            {savedTasksByCompany.map(([company, tasks]) => (
+                              <Collapsible key={company} defaultOpen={false}>
+                                <CollapsibleTrigger asChild>
+                                  <button className="group flex items-center justify-between w-full py-2 px-3 rounded-lg hover:bg-muted/50 transition-colors text-left">
+                                    <span className="font-medium text-sm">{company}</span>
+                                    <span className="text-xs text-muted-foreground">{tasks.length} task{tasks.length !== 1 ? 's' : ''}</span>
+                                    <ChevronDown className="h-4 w-4 text-muted-foreground shrink-0 ml-2 transition-transform group-data-[state=open]:rotate-180" />
                                   </button>
-                                </TableHead>
-                              );
-                            })}
-                            <TableHead className="w-[100px]">Actions</TableHead>
-                          </TableRow>
-                        </TableHeader>
-                        <TableBody>
-                          {filteredTasks
-                            .filter(t => settings.tasks.showCompleted || t.status !== 'COMPLETED')
-                            .sort((a, b) => {
-                              if (!taskSortColumn) return 0;
-                              const dir = taskSortDirection === 'asc' ? 1 : -1;
-                              const statusOrder: Record<string, number> = { NOT_STARTED: 0, IN_PROGRESS: 1, WAITING: 2, COMPLETED: 3 };
-                              let av: string | number, bv: string | number;
-                              switch (taskSortColumn) {
-                                case 'title': av = a.title.toLowerCase(); bv = b.title.toLowerCase(); break;
-                                case 'status': av = statusOrder[a.status]; bv = statusOrder[b.status]; break;
-                                case 'dueDate': av = a.dueDate; bv = b.dueDate; break;
-                                case 'deal': av = (a.associatedDealName || '').toLowerCase(); bv = (b.associatedDealName || '').toLowerCase(); break;
-                                case 'assignedTo': av = a.assignedTo.toLowerCase(); bv = b.assignedTo.toLowerCase(); break;
-                                default: return 0;
-                              }
-                              if (av < bv) return -1 * dir;
-                              if (av > bv) return 1 * dir;
-                              return 0;
-                            })
-                            .map(task => (
-                              <TableRow key={task.id} className={task.status === 'COMPLETED' ? 'opacity-50' : ''}>
-                                <TableCell className="font-medium max-w-[250px] truncate">{task.title}</TableCell>
-                                <TableCell>
-                                  <Select
-                                    value={task.status}
-                                    onValueChange={(value: Task['status']) => handleUpdateTask(task.id, { status: value })}
-                                  >
-                                    <SelectTrigger className="w-[140px] h-8 text-xs">
-                                      <SelectValue />
-                                    </SelectTrigger>
-                                    <SelectContent>
-                                      <SelectItem value="NOT_STARTED">Not Started</SelectItem>
-                                      <SelectItem value="IN_PROGRESS">In Progress</SelectItem>
-                                      <SelectItem value="WAITING">Waiting</SelectItem>
-                                      <SelectItem value="COMPLETED">Completed</SelectItem>
-                                    </SelectContent>
-                                  </Select>
-                                </TableCell>
-                                <TableCell>
-                                  <span className={task.dueDate < Date.now() && task.status !== 'COMPLETED' ? 'text-red-600 font-medium' : ''}>
-                                    {formatSmartDueDate(task.dueDate)}
-                                  </span>
-                                </TableCell>
-                                <TableCell>{task.associatedDealName || '—'}</TableCell>
-                                <TableCell>{task.assignedTo}</TableCell>
-                                <TableCell>
-                                  <Button
-                                    variant="ghost"
-                                    size="icon"
-                                    onClick={() => openEditTaskDialog(task)}
-                                  >
-                                    <Pencil className="h-4 w-4" />
-                                  </Button>
-                                </TableCell>
-                              </TableRow>
+                                </CollapsibleTrigger>
+                                <CollapsibleContent>
+                                  <div className="pl-3 pr-2 pb-2 space-y-1">
+                                    {tasks.map(task => (
+                                      <div key={task.id} className="flex items-center gap-3 py-2 px-3 rounded-md border bg-card">
+                                        <div className="flex-1 min-w-0">
+                                          <p className="font-medium text-sm truncate">{task.title}</p>
+                                          <div className="flex items-center gap-2 mt-0.5 text-xs text-muted-foreground">
+                                            <span className={task.dueDate < Date.now() && task.status !== 'COMPLETED' ? 'text-red-600 font-medium' : ''}>
+                                              {formatSmartDueDate(task.dueDate)}
+                                            </span>
+                                            <span>·</span>
+                                            <span>{task.assignedTo || '—'}</span>
+                                          </div>
+                                        </div>
+                                        <Select
+                                          value={task.status}
+                                          onValueChange={(value: Task['status']) => handleUpdateTask(task.id, { status: value })}
+                                        >
+                                          <SelectTrigger className="w-[130px] h-8 text-xs">
+                                            <SelectValue />
+                                          </SelectTrigger>
+                                          <SelectContent>
+                                            <SelectItem value="NOT_STARTED">Not Started</SelectItem>
+                                            <SelectItem value="IN_PROGRESS">In Progress</SelectItem>
+                                            <SelectItem value="WAITING">Waiting</SelectItem>
+                                            <SelectItem value="COMPLETED">Completed</SelectItem>
+                                          </SelectContent>
+                                        </Select>
+                                        <Button variant="ghost" size="icon" className="h-8 w-8 shrink-0" onClick={() => openEditTaskDialog(task)}>
+                                          <Pencil className="h-4 w-4" />
+                                        </Button>
+                                      </div>
+                                    ))}
+                                  </div>
+                                </CollapsibleContent>
+                              </Collapsible>
                             ))}
-                        </TableBody>
-                      </Table>
-                    </CardContent>
-                  )}
-                </Card>
+                          </div>
+                        )}
+                      </CardContent>
+                    </Card>
+                  </CollapsibleContent>
+                </Collapsible>
               );
 
               const smartTasksSection = (
@@ -1820,89 +1804,118 @@ OUTPUT: The complete email only — greeting, body (label → Miner line → no-
 
                   {visibleSmartTasks.length > 0 ? (
                     <div className="space-y-2">
-                      {(showAllSmartTasks ? visibleSmartTasks : visibleSmartTasks.slice(0, 5)).map(task => {
-                        const CatIcon = getCategoryIcon(task.category);
-                        const style = getCategoryStyle(task.category);
-                        const isOverdue = task.dueDate <= Date.now();
-                        const stageColor = getDealStageColor(task.dealStage);
+                      {(() => {
+                        const tasksToShow = showAllSmartTasks ? visibleSmartTasks : visibleSmartTasks.slice(0, 20);
+                        const recsByCompany = Object.entries(
+                          tasksToShow.reduce<Record<string, SmartTask[]>>((acc, t) => {
+                            const key = t.dealName || t.dealContact || 'Other';
+                            if (!acc[key]) acc[key] = [];
+                            acc[key].push(t);
+                            return acc;
+                          }, {})
+                        ).sort(([a], [b]) => (a === 'Other' ? 1 : b === 'Other' ? -1 : a.localeCompare(b)));
+
                         return (
-                          <div key={task.id} className="border rounded-lg p-3 hover:shadow-sm transition-shadow bg-card">
-                            <div className="flex items-center gap-3">
-                              <div className={`p-2 rounded-lg ${style.bg} shrink-0`}>
-                                <CatIcon className={`h-4 w-4 ${style.color}`} />
-                              </div>
-                              <div className="flex-1 min-w-0">
-                                <h4 className="font-medium text-sm truncate">{task.title}</h4>
-                                <div className="flex items-center gap-2 mt-1 text-xs text-muted-foreground flex-wrap">
-                                  <span className="font-medium text-foreground">{task.dealName || task.dealContact || '—'}</span>
-                                  <span>·</span>
-                                  <span>${task.dealAmount.toLocaleString()}</span>
-                                  <span>·</span>
-                                  <span className={`px-1.5 py-0.5 rounded-full ${stageColor.bg} ${stageColor.text}`}>
-                                    {task.dealStage}
-                                  </span>
-                                  <span>·</span>
-                                  <span className={isOverdue ? 'text-red-600 font-medium' : ''}>
-                                    {formatSmartDueDate(task.dueDate)}
-                                  </span>
-                                </div>
-                                <p className="text-xs text-muted-foreground mt-1 flex items-center gap-1">
-                                  <AlertTriangle className="h-3 w-3 shrink-0" />
-                                  {task.reason}
-                                </p>
-                              </div>
-                              <div className="flex items-center gap-1 shrink-0">
-                                {task.category === 'email' && task.dealEmail && (
-                                  <Button
-                                    size="sm"
-                                    variant="outline"
-                                    onClick={() => handleGenerateTaskEmail(task)}
-                                    className="text-blue-600 hover:text-blue-700 h-8 text-xs"
-                                  >
-                                    <Mail className="h-3.5 w-3.5 mr-1" />
-                                    Email
-                                  </Button>
-                                )}
-                                <Button
-                                  size="sm"
-                                  variant="outline"
-                                  onClick={() => handleSaveSmartTask(task)}
-                                  className="text-green-600 hover:text-green-700 h-8 text-xs"
-                                >
-                                  <CheckSquare className="h-3.5 w-3.5 mr-1" />
-                                  Save
-                                </Button>
-                                <Button
-                                  size="sm"
-                                  variant="ghost"
-                                  onClick={() => handleDismissSmartTask(task.id)}
-                                  className="text-muted-foreground h-8 w-8 p-0"
-                                >
-                                  <X className="h-3.5 w-3.5" />
-                                </Button>
-                              </div>
-                            </div>
-                          </div>
+                          <>
+                            {recsByCompany.map(([company, companyTasks]) => (
+                              <Collapsible key={company} defaultOpen={recsByCompany.length <= 5}>
+                                <CollapsibleTrigger asChild>
+                                  <button className="group flex items-center justify-between w-full py-2.5 px-3 rounded-lg border hover:bg-muted/50 transition-colors text-left">
+                                    <span className="font-medium text-sm">{company}</span>
+                                    <span className="text-xs text-muted-foreground">{companyTasks.length} recommendation{companyTasks.length !== 1 ? 's' : ''}</span>
+                                    <ChevronDown className="h-4 w-4 text-muted-foreground shrink-0 ml-2 transition-transform group-data-[state=open]:rotate-180" />
+                                  </button>
+                                </CollapsibleTrigger>
+                                <CollapsibleContent>
+                                  <div className="pl-3 pr-2 pb-2 pt-1 space-y-2">
+                                    {companyTasks.map(task => {
+                                      const CatIcon = getCategoryIcon(task.category);
+                                      const style = getCategoryStyle(task.category);
+                                      const isOverdue = task.dueDate <= Date.now();
+                                      const stageColor = getDealStageColor(task.dealStage);
+                                      return (
+                                        <div key={task.id} className="border rounded-lg p-3 hover:shadow-sm transition-shadow bg-card">
+                                          <div className="flex items-center gap-3">
+                                            <div className={`p-2 rounded-lg ${style.bg} shrink-0`}>
+                                              <CatIcon className={`h-4 w-4 ${style.color}`} />
+                                            </div>
+                                            <div className="flex-1 min-w-0">
+                                              <h4 className="font-medium text-sm truncate">{task.title}</h4>
+                                              <div className="flex items-center gap-2 mt-1 text-xs text-muted-foreground flex-wrap">
+                                                <span>${task.dealAmount.toLocaleString()}</span>
+                                                <span>·</span>
+                                                <span className={`px-1.5 py-0.5 rounded-full ${stageColor.bg} ${stageColor.text}`}>
+                                                  {task.dealStage}
+                                                </span>
+                                                <span>·</span>
+                                                <span className={isOverdue ? 'text-red-600 font-medium' : ''}>
+                                                  {formatSmartDueDate(task.dueDate)}
+                                                </span>
+                                              </div>
+                                              <p className="text-xs text-muted-foreground mt-1 flex items-center gap-1">
+                                                <AlertTriangle className="h-3 w-3 shrink-0" />
+                                                {task.reason}
+                                              </p>
+                                            </div>
+                                            <div className="flex items-center gap-1 shrink-0">
+                                              {task.category === 'email' && task.dealEmail && (
+                                                <Button
+                                                  size="sm"
+                                                  variant="outline"
+                                                  onClick={() => handleGenerateTaskEmail(task)}
+                                                  className="text-blue-600 hover:text-blue-700 h-8 text-xs"
+                                                >
+                                                  <Mail className="h-3.5 w-3.5 mr-1" />
+                                                  Email
+                                                </Button>
+                                              )}
+                                              <Button
+                                                size="sm"
+                                                variant="outline"
+                                                onClick={() => handleSaveSmartTask(task)}
+                                                className="text-green-600 hover:text-green-700 h-8 text-xs"
+                                              >
+                                                <CheckSquare className="h-3.5 w-3.5 mr-1" />
+                                                Save
+                                              </Button>
+                                              <Button
+                                                size="sm"
+                                                variant="ghost"
+                                                onClick={() => handleDismissSmartTask(task.id)}
+                                                className="text-muted-foreground h-8 w-8 p-0"
+                                              >
+                                                <X className="h-3.5 w-3.5" />
+                                              </Button>
+                                            </div>
+                                          </div>
+                                        </div>
+                                      );
+                                    })}
+                                  </div>
+                                </CollapsibleContent>
+                              </Collapsible>
+                            ))}
+                            {!showAllSmartTasks && visibleSmartTasks.length > 20 && (
+                              <Button
+                                variant="ghost"
+                                className="w-full text-muted-foreground hover:text-foreground"
+                                onClick={() => setShowAllSmartTasks(true)}
+                              >
+                                Show {visibleSmartTasks.length - 20} more recommendations
+                              </Button>
+                            )}
+                            {showAllSmartTasks && visibleSmartTasks.length > 20 && (
+                              <Button
+                                variant="ghost"
+                                className="w-full text-muted-foreground hover:text-foreground"
+                                onClick={() => setShowAllSmartTasks(false)}
+                              >
+                                Show less
+                              </Button>
+                            )}
+                          </>
                         );
-                      })}
-                      {!showAllSmartTasks && visibleSmartTasks.length > 5 && (
-                        <Button
-                          variant="ghost"
-                          className="w-full text-muted-foreground hover:text-foreground"
-                          onClick={() => setShowAllSmartTasks(true)}
-                        >
-                          Show {visibleSmartTasks.length - 5} more recommendations
-                        </Button>
-                      )}
-                      {showAllSmartTasks && visibleSmartTasks.length > 5 && (
-                        <Button
-                          variant="ghost"
-                          className="w-full text-muted-foreground hover:text-foreground"
-                          onClick={() => setShowAllSmartTasks(false)}
-                        >
-                          Show less
-                        </Button>
-                      )}
+                      })()}
                     </div>
                   ) : (
                     <Card>

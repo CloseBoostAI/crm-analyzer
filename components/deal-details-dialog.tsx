@@ -392,26 +392,26 @@ export function DealDetailsDialog({ deal, open, onOpenChange, onNotesSaved }: Pr
                                 {thread.status}
                               </span>
                             </div>
-                            <div className="p-3 space-y-4">
+                            <div className="p-4 space-y-4 flex flex-col">
                               {thread.messages.map((msg, i) => (
                                 <div
                                   key={i}
-                                  className={`space-y-1 max-w-[85%] ${msg.isFromUser ? 'ml-auto' : 'mr-auto'}`}
+                                  className={`flex flex-col ${msg.isFromUser ? 'items-end' : 'items-start'}`}
                                 >
-                                  <p className="text-xs font-medium text-muted-foreground">
+                                  <p className="text-xs font-medium text-muted-foreground mb-1 px-1">
                                     {msg.isFromUser ? 'You' : (msg.senderName || msg.senderEmail)}
                                     <span className="ml-2 font-normal">
                                       {new Date(msg.receivedAt).toLocaleString()}
                                     </span>
                                   </p>
                                   <div
-                                    className={`rounded-lg border p-3 text-sm ${
+                                    className={`max-w-[80%] rounded-2xl px-4 py-3 text-sm ${
                                       msg.isFromUser
-                                        ? 'border-primary/30 bg-primary/5'
-                                        : 'border-border bg-muted/30'
+                                        ? 'bg-primary text-primary-foreground rounded-br-sm'
+                                        : 'bg-muted rounded-bl-sm'
                                     }`}
                                   >
-                                    <p className="text-foreground whitespace-pre-wrap break-words">
+                                    <p className="whitespace-pre-wrap break-words">
                                       {htmlToPlainText(msg.bodyText || '').replace(/\s+/g, ' ').trim().slice(0, 500)}
                                       {htmlToPlainText(msg.bodyText || '').replace(/\s+/g, ' ').trim().length > 500 ? '...' : ''}
                                     </p>

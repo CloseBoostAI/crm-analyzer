@@ -370,63 +370,46 @@ export function DealDetailsDialog({ deal, open, onOpenChange, onNotesSaved }: Pr
                         </p>
                       </div>
                     ) : (
-                      <div className="max-h-[500px] overflow-y-auto overflow-x-hidden rounded-md border">
-                        <div className="p-4 space-y-4">
-                          {dealThreads.map((thread) => (
-                            <div
-                              key={thread.id}
-                              className="border rounded-lg overflow-hidden"
-                            >
-                              <div className="flex items-center justify-between gap-2 px-3 py-2 bg-muted/50 border-b shrink-0">
-                                <p className="text-sm font-medium truncate">
-                                  {thread.subject || '(no subject)'}
-                                </p>
-                                <span
-                                  className={`shrink-0 text-xs px-2 py-0.5 rounded ${
-                                    thread.status === 'pending'
-                                      ? 'bg-amber-100 text-amber-800 dark:bg-amber-900/50 dark:text-amber-200'
-                                      : thread.status === 'acknowledged'
-                                      ? 'bg-blue-100 text-blue-800 dark:bg-blue-900/50 dark:text-blue-200'
-                                      : 'bg-green-100 text-green-800 dark:bg-green-900/50 dark:text-green-200'
-                                  }`}
+                      <div className="rounded-md border overflow-hidden">
+                        <div className="px-3 py-2 bg-muted/50 border-b shrink-0">
+                          <p className="text-sm font-medium truncate">
+                            {dealThreads[0]?.subject || '(no subject)'}
+                          </p>
+                        </div>
+                        <div className="max-h-[500px] overflow-y-auto overflow-x-hidden p-4 space-y-4">
+                          {dealThreads.flatMap((thread) =>
+                            thread.messages.map((msg, i) => {
+                              const plain = htmlToPlainText(msg.bodyText || '');
+                              const bodyOnly = extractReplyBody(plain) || plain;
+                              const display = bodyOnly.replace(/\s+/g, ' ').trim();
+                              const truncated = display.length > 500 ? display.slice(0, 500) + '...' : display;
+                              return (
+                                <div
+                                  key={`${thread.id}-${msg.receivedAt}-${i}`}
+                                  className={`flex flex-col ${msg.isFromUser ? 'items-end' : 'items-start'}`}
                                 >
-                                  {thread.status}
-                                </span>
-                              </div>
-                              <div className="p-4 space-y-4 flex flex-col">
-                                {thread.messages.map((msg, i) => {
-                                  const plain = htmlToPlainText(msg.bodyText || '');
-                                  const bodyOnly = extractReplyBody(plain) || plain;
-                                  const display = bodyOnly.replace(/\s+/g, ' ').trim();
-                                  const truncated = display.length > 500 ? display.slice(0, 500) + '...' : display;
-                                  return (
-                                    <div
-                                      key={`${msg.receivedAt}-${i}`}
-                                      className={`flex flex-col shrink-0 ${msg.isFromUser ? 'items-end' : 'items-start'}`}
-                                    >
-                                      <p className="text-xs font-medium text-muted-foreground mb-1 px-1">
-                                        {msg.isFromUser ? 'You' : (msg.senderName || msg.senderEmail)}
-                                        <span className="ml-2 font-normal">
-                                          {new Date(msg.receivedAt).toLocaleString()}
-                                        </span>
-                                      </p>
-                                      <div
-                                        className={`max-w-[80%] rounded-2xl px-4 py-3 text-sm ${
-                                          msg.isFromUser
-                                            ? 'bg-primary text-primary-foreground rounded-br-sm'
-                                            : 'bg-muted rounded-bl-sm'
-                                        }`}
-                                      >
-                                        <p className="whitespace-pre-wrap break-words">
-                                          {truncated}
-                                        </p>
-                                      </div>
-                                    </div>
-                                  );
-                                })}
-                              </div>
-                            </div>
-                          ))}
+                                  <p className="text-xs font-medium text-muted-foreground mb-1 px-1">
+                                    {msg.isFromUser ? 'Me' : (msg.senderName || msg.senderEmail)}
+                                    <span className="ml-2 font-normal">
+                                      {new Date(msg.receivedAt).toLocaleTimeString(undefined, {
+                                        hour: 'numeric',
+                                        minute: '2-digit',
+                                      })}
+                                    </span>
+                                  </p>
+                                  <div
+                                    className={`max-w-[85%] rounded-2xl px-4 py-3 text-sm ${
+                                      msg.isFromUser
+                                        ? 'bg-primary text-primary-foreground rounded-br-sm'
+                                        : 'bg-muted rounded-bl-sm'
+                                    }`}
+                                  >
+                                    <p className="whitespace-pre-wrap break-words">{truncated}</p>
+                                  </div>
+                                </div>
+                              );
+                            })
+                          )}
                         </div>
                       </div>
                     )}

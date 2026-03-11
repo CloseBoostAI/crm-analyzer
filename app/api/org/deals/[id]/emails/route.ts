@@ -149,7 +149,21 @@ export async function GET(
   });
 
   const threads: DealEmailThread[] = [];
-  const seenThreadKeys = new Set<string>();
+  const threadByKey = new Map<string, { idx: number; thread: DealEmailThread }>();
+
+  function addOrReplaceThread(threadKey: string, thread: DealEmailThread) {
+    const existing = threadByKey.get(threadKey);
+    if (existing) {
+      if (thread.messages.length > existing.thread.messages.length) {
+        threads[existing.idx] = thread;
+        threadByKey.set(threadKey, { idx: existing.idx, thread });
+      }
+    } else {
+      const idx = threads.length;
+      threads.push(thread);
+      threadByKey.set(threadKey, { idx, thread });
+    }
+  }
 
   for (const seed of uniqueSeeds) {
     if (seed.connectionId && seed.messageId) {
@@ -163,10 +177,8 @@ export async function GET(
         const threadKey = threadData.threadId
           ? `${seed.connectionId}:${threadData.threadId}`
           : `${seed.connectionId}:${seed.messageId}`;
-        if (seenThreadKeys.has(threadKey)) continue;
-        seenThreadKeys.add(threadKey);
 
-        threads.push({
+        addOrReplaceThread(threadKey, {
           id: seed.id,
           subject: threadData.subject,
           status: seed.status as 'pending' | 'acknowledged' | 'replied',
@@ -178,13 +190,14 @@ export async function GET(
       } else {
         // Fallback: single message
         const body = htmlToPlainText(seed.bodyText || seed.bodyHtml || '');
-        threads.push({
+        const fallbackThread: DealEmailThread = {
           id: seed.id,
           subject: seed.subject,
           status: seed.status as 'pending' | 'acknowledged' | 'replied',
           receivedAt: seed.receivedAt,
           messages: [{ senderEmail: seed.senderEmail, senderName: seed.senderName || null, bodyText: body, receivedAt: seed.receivedAt, isFromUser: false }],
-        });
+        };
+        addOrReplaceThread(`${seed.connectionId}:${seed.messageId}`, fallbackThread);
       }
     } else {
       // Webhook email (no connection_id): try to find OAuth thread to get full conversation including user's reply
@@ -200,21 +213,18 @@ export async function GET(
           const threadKey = threadData.threadId
             ? `${oauthMatch.connectionId}:${threadData.threadId}`
             : `${oauthMatch.connectionId}:${oauthMatch.messageId}`;
-          if (!seenThreadKeys.has(threadKey)) {
-            seenThreadKeys.add(threadKey);
-            threads.push({
-              id: seed.id,
-              subject: threadData.subject,
-              status: seed.status as 'pending' | 'acknowledged' | 'replied',
-              receivedAt: threadData.messages.length > 0
-                ? threadData.messages[threadData.messages.length - 1].receivedAt
-                : seed.receivedAt,
-              messages: threadData.messages,
-            });
-          }
+          addOrReplaceThread(threadKey, {
+            id: seed.id,
+            subject: threadData.subject,
+            status: seed.status as 'pending' | 'acknowledged' | 'replied',
+            receivedAt: threadData.messages.length > 0
+              ? threadData.messages[threadData.messages.length - 1].receivedAt
+              : seed.receivedAt,
+            messages: threadData.messages,
+          });
         } else {
           const body = htmlToPlainText(seed.bodyText || seed.bodyHtml || '');
-          threads.push({
+          addOrReplaceThread(`webhook:${seed.id}`, {
             id: seed.id,
             subject: seed.subject,
             status: seed.status as 'pending' | 'acknowledged' | 'replied',
@@ -224,7 +234,7 @@ export async function GET(
         }
       } else {
         const body = htmlToPlainText(seed.bodyText || seed.bodyHtml || '');
-        threads.push({
+        addOrReplaceThread(`webhook:${seed.id}`, {
           id: seed.id,
           subject: seed.subject,
           status: seed.status as 'pending' | 'acknowledged' | 'replied',
@@ -235,8 +245,8 @@ export async function GET(
     }
   }
 
-  // 4. User-initiated: no inbound yet, but we sent first - search OAuth by recipient
-  if (threads.length === 0 && deal?.email) {
+  // 4. User-initiated: always try to get full thread (user sent first, or to fill in if we only have partial)
+  if (deal?.email) {
     const recipientEmail = (deal.email as string).trim().toLowerCase();
     if (recipientEmail) {
       const oauthMatch = await findOAuthThreadByRecipient(orgId, recipientEmail);
@@ -251,18 +261,15 @@ export async function GET(
           const threadKey = threadData.threadId
             ? `${oauthMatch.connectionId}:${threadData.threadId}`
             : `${oauthMatch.connectionId}:${oauthMatch.messageId}`;
-          if (!seenThreadKeys.has(threadKey)) {
-            seenThreadKeys.add(threadKey);
-            threads.push({
-              id: `user-initiated:${oauthMatch.connectionId}:${oauthMatch.messageId}`,
-              subject: threadData.subject,
-              status: 'pending' as const,
-              receivedAt: threadData.messages.length > 0
-                ? threadData.messages[threadData.messages.length - 1].receivedAt
-                : new Date().toISOString(),
-              messages: threadData.messages,
-            });
-          }
+          addOrReplaceThread(threadKey, {
+            id: `user-initiated:${oauthMatch.connectionId}:${oauthMatch.messageId}`,
+            subject: threadData.subject,
+            status: 'pending' as const,
+            receivedAt: threadData.messages.length > 0
+              ? threadData.messages[threadData.messages.length - 1].receivedAt
+              : new Date().toISOString(),
+            messages: threadData.messages,
+          });
         }
       }
     }

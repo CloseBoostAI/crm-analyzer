@@ -7,7 +7,7 @@ import {
   DialogHeader,
   DialogTitle,
 } from '@/components/ui/dialog';
-import { Card, CardContent, CardHeader, CardTitle } from '@/components/ui/card';
+import { Card, CardContent, CardDescription, CardHeader, CardTitle } from '@/components/ui/card';
 import { Button } from '@/components/ui/button';
 import { Textarea } from '@/components/ui/textarea';
 import { ScrollArea } from '@/components/ui/scroll-area';
@@ -67,15 +67,6 @@ type Props = {
   onNotesSaved?: (dealId: string, notes: string) => void;
 };
 
-type ActivityItem = {
-  id: string;
-  receivedAt: string;
-  senderName: string | null;
-  senderEmail: string;
-  subject: string;
-  isFromUser: boolean;
-};
-
 export function DealDetailsDialog({ deal, open, onOpenChange, onNotesSaved }: Props) {
   const [aiSummary, setAiSummary] = useState<string | null>(null);
   const [generatingSummary, setGeneratingSummary] = useState(false);
@@ -84,27 +75,10 @@ export function DealDetailsDialog({ deal, open, onOpenChange, onNotesSaved }: Pr
   const [aiOpen, setAiOpen] = useState(true);
   const [notes, setNotes] = useState('');
   const [savingNotes, setSavingNotes] = useState(false);
-  const [activity, setActivity] = useState<ActivityItem[]>([]);
-  const [activityLoading, setActivityLoading] = useState(false);
-
-  const fetchActivity = () => {
-    if (!deal?.id) return;
-    setActivityLoading(true);
-    fetch(`/api/org/deals/${deal.id}/activity`)
-      .then((res) => (res.ok ? res.json() : { items: [] }))
-      .then((data) => setActivity(data.items || []))
-      .catch(() => setActivity([]))
-      .finally(() => setActivityLoading(false));
-  };
 
   useEffect(() => {
     if (deal) setNotes(deal.notes || '');
   }, [deal?.id, deal?.notes]);
-
-  useEffect(() => {
-    if (!deal?.id || !open) return;
-    fetchActivity();
-  }, [deal?.id, open]);
 
   const saveNotes = async () => {
     if (!deal || notes === (deal.notes || '')) return;
@@ -199,24 +173,31 @@ export function DealDetailsDialog({ deal, open, onOpenChange, onNotesSaved }: Pr
           </DialogTitle>
         </DialogHeader>
         <ScrollArea className="flex-1 px-6 py-4">
-          <div className="grid grid-cols-1 lg:grid-cols-12 gap-6 pb-6">
-            {/* Left sidebar */}
-            <div className="lg:col-span-4 space-y-4">
+          <div className="grid grid-cols-1 lg:grid-cols-2 gap-6 pb-6">
+            {/* Left column */}
+            <div className="space-y-4">
               <Card>
                 <CardHeader className="pb-2">
                   <CardTitle className="text-lg font-semibold">
                     {getDealDisplayName(deal)}
                   </CardTitle>
-                  <div className="space-y-1 text-sm text-muted-foreground mt-2">
+                  <div className="grid grid-cols-2 gap-x-6 gap-y-2 text-sm text-muted-foreground mt-3">
                     <p><strong className="text-foreground">Amount:</strong> ${deal.amount.toLocaleString('en-US', { minimumFractionDigits: 0, maximumFractionDigits: 0 })}</p>
                     <p><strong className="text-foreground">Close Date:</strong> {deal.closeDate || '—'}</p>
                     <p><strong className="text-foreground">Pipeline:</strong> Deals pipeline</p>
                     <p>
-                      <strong className="text-foreground">Deal Stage:</strong>{' '}
+                      <strong className="text-foreground">Stage:</strong>{' '}
                       <span className={`inline-flex items-center px-2 py-0.5 rounded-full text-xs font-medium ${getDealStageColor(deal.stage).bg} ${getDealStageColor(deal.stage).text}`}>
                         {deal.stage}
                       </span>
                     </p>
+                    <p>
+                      <strong className="text-foreground">Priority:</strong>{' '}
+                      <span className={`inline-flex items-center px-2 py-0.5 rounded-full text-xs font-medium ${getPriorityStyle(deal.priority)}`}>
+                        {deal.priority}
+                      </span>
+                    </p>
+                    <p><strong className="text-foreground">Owner:</strong> {deal.owner || '—'}</p>
                   </div>
                 </CardHeader>
                 <CardContent className="pt-0">
@@ -251,21 +232,14 @@ export function DealDetailsDialog({ deal, open, onOpenChange, onNotesSaved }: Pr
                   </CollapsibleTrigger>
                   <CollapsibleContent>
                     <CardContent className="pt-0 space-y-2 text-sm">
-                      <p><strong>Deal owner:</strong> {deal.owner}</p>
+                      <p><strong>Deal owner:</strong> {deal.owner || '—'}</p>
                       <p><strong>Last Contacted:</strong> {deal.lastActivity ? new Date(deal.lastActivity).toLocaleDateString() : '—'}</p>
-                      <p><strong>Deal Type:</strong> —</p>
-                      <p>
-                        <strong>Priority:</strong>{' '}
-                        <span className={`inline-flex items-center px-2 py-0.5 rounded-full text-xs font-medium ${getPriorityStyle(deal.priority)}`}>
-                          {deal.priority}
-                        </span>
-                      </p>
                       <p><strong>Record source:</strong> Import</p>
                       <div className="pt-2 mt-2 border-t space-y-2">
                         <p className="font-medium text-foreground">Data highlights</p>
-                        <p><strong>CREATE DATE:</strong> {createDate}</p>
-                        <p><strong>LAST ACTIVITY DATE:</strong> {lastActivityDate}</p>
-                        <p><strong>DEAL STAGE:</strong> {deal.stage} (Deals pipeline)</p>
+                        <p><strong>Created:</strong> {createDate}</p>
+                        <p><strong>Last activity:</strong> {lastActivityDate}</p>
+                        <p><strong>Stage:</strong> {deal.stage} (Deals pipeline)</p>
                       </div>
                     </CardContent>
                   </CollapsibleContent>
@@ -273,69 +247,8 @@ export function DealDetailsDialog({ deal, open, onOpenChange, onNotesSaved }: Pr
               </Collapsible>
             </div>
 
-            {/* Center: Activity section */}
-            <div className="lg:col-span-5">
-              <Card className="h-full min-h-[300px] flex flex-col">
-                <CardHeader className="flex flex-row items-center justify-between space-y-0 pb-2">
-                  <CardTitle className="text-sm font-medium">Activity</CardTitle>
-                  <Button
-                    variant="ghost"
-                    size="icon"
-                    className="h-8 w-8 shrink-0"
-                    onClick={fetchActivity}
-                    disabled={activityLoading}
-                    title="Refresh activity"
-                  >
-                    <RefreshCw className={`h-4 w-4 ${activityLoading ? 'animate-spin' : ''}`} />
-                  </Button>
-                </CardHeader>
-                <CardContent className="flex-1 overflow-auto">
-                  {activityLoading ? (
-                    <div className="flex items-center justify-center py-12 text-sm text-muted-foreground">
-                      <Loader2 className="h-5 w-5 animate-spin mr-2" />
-                      Loading activity…
-                    </div>
-                  ) : activity.length === 0 ? (
-                    <div className="flex items-center justify-center py-12 text-sm text-muted-foreground">
-                      No emails yet. Activity will appear when emails are sent or received with this contact.
-                    </div>
-                  ) : (
-                    <div className="space-y-3">
-                      {activity.map((item) => {
-                        const dt = new Date(item.receivedAt);
-                        const dateStr = dt.toLocaleDateString('en-US', {
-                          month: 'short',
-                          day: 'numeric',
-                          year: 'numeric',
-                          hour: 'numeric',
-                          minute: '2-digit',
-                        });
-                        const sender = item.senderName || item.senderEmail;
-                        return (
-                          <div
-                            key={item.id}
-                            className="flex flex-col gap-0.5 py-2 px-3 rounded-lg border bg-muted/30 hover:bg-muted/50 transition-colors"
-                          >
-                            <div className="flex items-center justify-between gap-2 text-xs text-muted-foreground">
-                              <span className="font-medium text-foreground truncate" title={item.senderEmail}>
-                                {sender}
-                              </span>
-                              <span className="shrink-0">{dateStr}</span>
-                            </div>
-                            <p className="text-sm truncate" title={item.subject}>
-                              {item.subject || '(no subject)'}
-                            </p>
-                          </div>
-                        );
-                      })}
-                    </div>
-                  )}
-                </CardContent>
-              </Card>
-            </div>
-
-            {/* Right sidebar */}
-            <div className="lg:col-span-3 space-y-4">
+            {/* Right column */}
+            <div className="space-y-4">
               <Collapsible open={aiOpen} onOpenChange={setAiOpen}>
                 <Card>
                   <CollapsibleTrigger asChild>
@@ -398,31 +311,33 @@ export function DealDetailsDialog({ deal, open, onOpenChange, onNotesSaved }: Pr
                   <CollapsibleTrigger asChild>
                     <CardHeader className="cursor-pointer hover:bg-muted/50 transition-colors rounded-t-lg">
                       <div className="flex items-center justify-between">
-                        <CardTitle className="text-sm font-medium">Contacts (1)</CardTitle>
+                        <CardTitle className="text-sm font-medium">Contact</CardTitle>
                         {contactsOpen ? <ChevronUp className="h-4 w-4" /> : <ChevronDown className="h-4 w-4" />}
                       </div>
                     </CardHeader>
                   </CollapsibleTrigger>
                   <CollapsibleContent>
                     <CardContent className="pt-0">
-                      <div className="flex items-start gap-3 p-3 rounded-lg border">
-                        <div className="flex h-9 w-9 shrink-0 items-center justify-center rounded-full bg-primary/10">
-                          <User className="h-4 w-4 text-primary" />
+                      <div className="flex items-start gap-3 p-3 rounded-lg border bg-muted/20">
+                        <div className="flex h-10 w-10 shrink-0 items-center justify-center rounded-full bg-primary/10">
+                          <User className="h-5 w-5 text-primary" />
                         </div>
-                        <div className="min-w-0 flex-1">
-                          <p className="font-medium text-sm truncate">{deal.contact || '—'}</p>
-                          <p className="text-xs text-muted-foreground truncate flex items-center gap-1">
+                        <div className="min-w-0 flex-1 space-y-1">
+                          <p className="font-medium text-sm">{deal.contact || '—'}</p>
+                          <p className="text-xs text-muted-foreground flex items-center gap-1">
                             <Building2 className="h-3 w-3 shrink-0" />
                             {deal.company || '—'}
                           </p>
                           {deal.email && (
-                            <p className="text-xs text-muted-foreground mt-1 flex items-center gap-1">
+                            <p className="text-xs text-muted-foreground flex items-center gap-1 mt-2">
+                              <Mail className="h-3 w-3 shrink-0" />
                               {deal.email}
                               <Button
                                 variant="ghost"
                                 size="icon"
-                                className="h-5 w-5"
+                                className="h-5 w-5 shrink-0"
                                 onClick={() => copyEmail(deal.email)}
+                                title="Copy email"
                               >
                                 <Copy className="h-3 w-3" />
                               </Button>
@@ -435,17 +350,20 @@ export function DealDetailsDialog({ deal, open, onOpenChange, onNotesSaved }: Pr
                 </Card>
               </Collapsible>
 
-              <Card>
+              <Card className="flex flex-col min-h-0">
                 <CardHeader>
                   <CardTitle className="text-sm font-medium">Notes</CardTitle>
+                  <CardDescription className="text-xs text-muted-foreground">
+                    Add notes, next steps, or key details about this deal.
+                  </CardDescription>
                 </CardHeader>
-                <CardContent>
+                <CardContent className="flex-1 min-h-0">
                   <Textarea
                     value={notes}
                     onChange={(e) => setNotes(e.target.value)}
                     onBlur={saveNotes}
                     placeholder="Add notes about this deal..."
-                    className="min-h-[120px] resize-y font-mono text-sm"
+                    className="min-h-[140px] resize-y font-mono text-sm"
                     disabled={savingNotes}
                   />
                   {savingNotes && (

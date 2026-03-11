@@ -1,6 +1,6 @@
 'use client';
 
-import { useState, useEffect, useCallback } from 'react';
+import { useState, useEffect } from 'react';
 import {
   Dialog,
   DialogContent,
@@ -31,6 +31,8 @@ import {
   Sparkles,
   Copy,
   Loader2,
+  RefreshCw,
+  MessageSquare,
 } from 'lucide-react';
 import { toast } from 'sonner';
 
@@ -66,6 +68,14 @@ type Props = {
   onNotesSaved?: (dealId: string, notes: string) => void;
 };
 
+type ActivityMessage = {
+  senderEmail: string;
+  senderName: string | null;
+  bodyText: string;
+  receivedAt: string;
+  isFromUser: boolean;
+};
+
 export function DealDetailsDialog({ deal, open, onOpenChange, onNotesSaved }: Props) {
   const [aiSummary, setAiSummary] = useState<string | null>(null);
   const [generatingSummary, setGeneratingSummary] = useState(false);
@@ -74,9 +84,26 @@ export function DealDetailsDialog({ deal, open, onOpenChange, onNotesSaved }: Pr
   const [aiOpen, setAiOpen] = useState(true);
   const [notes, setNotes] = useState('');
   const [savingNotes, setSavingNotes] = useState(false);
+  const [activityMessages, setActivityMessages] = useState<ActivityMessage[]>([]);
+  const [activityLoading, setActivityLoading] = useState(false);
+
   useEffect(() => {
     if (deal) setNotes(deal.notes || '');
   }, [deal?.id, deal?.notes]);
+
+  useEffect(() => {
+    if (!deal?.id || !open) return;
+    if (!deal.email?.trim()) {
+      setActivityMessages([]);
+      return;
+    }
+    setActivityLoading(true);
+    fetch(`/api/org/deals/${deal.id}/activity`)
+      .then((res) => res.json())
+      .then((data) => setActivityMessages(data.messages || []))
+      .catch(() => setActivityMessages([]))
+      .finally(() => setActivityLoading(false));
+  }, [deal?.id, deal?.email, open]);
 
   const saveNotes = async () => {
     if (!deal || notes === (deal.notes || '')) return;
@@ -233,42 +260,65 @@ export function DealDetailsDialog({ deal, open, onOpenChange, onNotesSaved }: Pr
                         </span>
                       </p>
                       <p><strong>Record source:</strong> Import</p>
+                      <div className="pt-2 mt-2 border-t space-y-2">
+                        <p className="font-medium text-foreground">Data highlights</p>
+                        <p><strong>CREATE DATE:</strong> {createDate}</p>
+                        <p><strong>LAST ACTIVITY DATE:</strong> {lastActivityDate}</p>
+                        <p><strong>DEAL STAGE:</strong> {deal.stage} (Deals pipeline)</p>
+                      </div>
                     </CardContent>
                   </CollapsibleContent>
                 </Card>
               </Collapsible>
             </div>
 
-            {/* Center content */}
-            <div className="lg:col-span-5 space-y-4">
-              <Card>
+            {/* Center: Activity section */}
+            <div className="lg:col-span-5">
+              <Card className="h-full min-h-[300px] flex flex-col">
                 <CardHeader>
-                  <CardTitle className="text-sm font-medium">Data highlights</CardTitle>
+                  <CardTitle className="text-sm font-medium flex items-center gap-2">
+                    <MessageSquare className="h-4 w-4" /> Activity
+                  </CardTitle>
                 </CardHeader>
-                <CardContent className="space-y-2 text-sm">
-                  <p><strong>CREATE DATE:</strong> {createDate}</p>
-                  <p><strong>LAST ACTIVITY DATE:</strong> {lastActivityDate}</p>
-                  <p><strong>DEAL STAGE:</strong> {deal.stage} (Deals pipeline)</p>
-                </CardContent>
-              </Card>
-
-              <Card>
-                <CardHeader>
-                  <CardTitle className="text-sm font-medium">Notes</CardTitle>
-                </CardHeader>
-                <CardContent>
-                  <Textarea
-                    value={notes}
-                    onChange={(e) => setNotes(e.target.value)}
-                    onBlur={saveNotes}
-                    placeholder="Add notes about this deal..."
-                    className="min-h-[200px] resize-y font-mono text-sm"
-                    disabled={savingNotes}
-                  />
-                  {savingNotes && (
-                    <p className="text-xs text-muted-foreground mt-2 flex items-center gap-1">
-                      <Loader2 className="h-3 w-3 animate-spin" /> Saving...
-                    </p>
+                <CardContent className="flex-1 overflow-hidden flex flex-col pt-0">
+                  {activityLoading ? (
+                    <div className="flex-1 flex items-center justify-center">
+                      <Loader2 className="h-6 w-6 animate-spin text-muted-foreground" />
+                    </div>
+                  ) : activityMessages.length === 0 ? (
+                    <div className="flex-1 flex items-center justify-center text-sm text-muted-foreground">
+                      No email activity yet
+                    </div>
+                  ) : (
+                    <ScrollArea className="flex-1 pr-4 -mr-4">
+                      <div className="space-y-3">
+                        {activityMessages.map((msg, i) => (
+                          <div
+                            key={`${msg.receivedAt}-${i}`}
+                            className={`flex ${msg.isFromUser ? 'justify-end' : 'justify-start'}`}
+                          >
+                            <div
+                              className={`max-w-[85%] rounded-lg px-3 py-2 ${
+                                msg.isFromUser
+                                  ? 'bg-blue-100 dark:bg-blue-900/40 rounded-br-sm'
+                                  : 'bg-green-100 dark:bg-green-900/40 rounded-bl-sm'
+                              }`}
+                            >
+                              <p className="text-xs font-medium text-muted-foreground mb-0.5">
+                                {msg.isFromUser ? 'You' : (msg.senderName || msg.senderEmail || 'Contact')}
+                                <span className="ml-2 font-normal">
+                                  {new Date(msg.receivedAt).toLocaleTimeString('en-US', {
+                                    hour: 'numeric',
+                                    minute: '2-digit',
+                                  })}
+                                </span>
+                              </p>
+                              <p className="text-sm whitespace-pre-wrap break-words">{msg.bodyText}</p>
+                            </div>
+                          </div>
+                        ))}
+                      </div>
+                    </ScrollArea>
                   )}
                 </CardContent>
               </Card>
@@ -374,6 +424,27 @@ export function DealDetailsDialog({ deal, open, onOpenChange, onNotesSaved }: Pr
                   </CollapsibleContent>
                 </Card>
               </Collapsible>
+
+              <Card>
+                <CardHeader>
+                  <CardTitle className="text-sm font-medium">Notes</CardTitle>
+                </CardHeader>
+                <CardContent>
+                  <Textarea
+                    value={notes}
+                    onChange={(e) => setNotes(e.target.value)}
+                    onBlur={saveNotes}
+                    placeholder="Add notes about this deal..."
+                    className="min-h-[120px] resize-y font-mono text-sm"
+                    disabled={savingNotes}
+                  />
+                  {savingNotes && (
+                    <p className="text-xs text-muted-foreground mt-2 flex items-center gap-1">
+                      <Loader2 className="h-3 w-3 animate-spin" /> Saving...
+                    </p>
+                  )}
+                </CardContent>
+              </Card>
             </div>
           </div>
         </ScrollArea>

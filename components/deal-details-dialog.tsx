@@ -68,11 +68,13 @@ type Props = {
   onNotesSaved?: (dealId: string, notes: string) => void;
 };
 
-type ActivityMessage = {
-  senderEmail: string;
-  senderName: string | null;
-  bodyText: string;
+type ActivityItem = {
+  id: string;
   receivedAt: string;
+  senderName: string | null;
+  senderEmail: string;
+  subject: string;
+  bodyText: string | null;
   isFromUser: boolean;
 };
 
@@ -84,7 +86,7 @@ export function DealDetailsDialog({ deal, open, onOpenChange, onNotesSaved }: Pr
   const [aiOpen, setAiOpen] = useState(true);
   const [notes, setNotes] = useState('');
   const [savingNotes, setSavingNotes] = useState(false);
-  const [activityMessages, setActivityMessages] = useState<ActivityMessage[]>([]);
+  const [activityItems, setActivityItems] = useState<ActivityItem[]>([]);
   const [activityLoading, setActivityLoading] = useState(false);
 
   useEffect(() => {
@@ -92,23 +94,19 @@ export function DealDetailsDialog({ deal, open, onOpenChange, onNotesSaved }: Pr
   }, [deal?.id, deal?.notes]);
 
   const fetchActivity = useCallback(() => {
-    if (!deal?.id || !deal.email?.trim()) return;
+    if (!deal?.id) return;
     setActivityLoading(true);
     fetch(`/api/org/deals/${deal.id}/activity`)
       .then((res) => res.json())
-      .then((data) => setActivityMessages(data.messages || []))
-      .catch(() => setActivityMessages([]))
+      .then((data) => setActivityItems(data.items || []))
+      .catch(() => setActivityItems([]))
       .finally(() => setActivityLoading(false));
-  }, [deal?.id, deal?.email]);
+  }, [deal?.id]);
 
   useEffect(() => {
     if (!deal?.id || !open) return;
-    if (!deal.email?.trim()) {
-      setActivityMessages([]);
-      return;
-    }
     fetchActivity();
-  }, [deal?.id, deal?.email, open, fetchActivity]);
+  }, [deal?.id, open, fetchActivity]);
 
   const saveNotes = async () => {
     if (!deal || notes === (deal.notes || '')) return;
@@ -289,7 +287,7 @@ export function DealDetailsDialog({ deal, open, onOpenChange, onNotesSaved }: Pr
                     size="icon"
                     className="h-8 w-8"
                     onClick={fetchActivity}
-                    disabled={activityLoading || !deal?.email?.trim()}
+                    disabled={activityLoading}
                     title="Refresh activity"
                   >
                     <RefreshCw className={`h-4 w-4 ${activityLoading ? 'animate-spin' : ''}`} />
@@ -300,35 +298,51 @@ export function DealDetailsDialog({ deal, open, onOpenChange, onNotesSaved }: Pr
                     <div className="flex-1 flex items-center justify-center">
                       <Loader2 className="h-6 w-6 animate-spin text-muted-foreground" />
                     </div>
-                  ) : activityMessages.length === 0 ? (
+                  ) : activityItems.length === 0 ? (
                     <div className="flex-1 flex items-center justify-center text-sm text-muted-foreground">
                       No email activity yet
                     </div>
                   ) : (
                     <ScrollArea className="flex-1 pr-4 -mr-4">
-                      <div className="space-y-3">
-                        {activityMessages.map((msg, i) => (
+                      <div className="space-y-2">
+                        {activityItems.map((item) => (
                           <div
-                            key={`${msg.receivedAt}-${i}`}
-                            className={`flex ${msg.isFromUser ? 'justify-end' : 'justify-start'}`}
+                            key={item.id}
+                            className={`flex ${item.isFromUser ? 'justify-end' : 'justify-start'}`}
                           >
                             <div
-                              className={`max-w-[85%] rounded-lg px-3 py-2 ${
-                                msg.isFromUser
-                                  ? 'bg-blue-100 dark:bg-blue-900/40 rounded-br-sm'
-                                  : 'bg-green-100 dark:bg-green-900/40 rounded-bl-sm'
+                              className={`max-w-[90%] rounded-lg px-3 py-2 border ${
+                                item.isFromUser
+                                  ? 'bg-blue-50 dark:bg-blue-950/50 border-blue-200 dark:border-blue-800'
+                                  : 'bg-green-50 dark:bg-green-950/50 border-green-200 dark:border-green-800'
                               }`}
                             >
-                              <p className="text-xs font-medium text-muted-foreground mb-0.5">
-                                {msg.isFromUser ? 'You' : (msg.senderName || msg.senderEmail || 'Contact')}
-                                <span className="ml-2 font-normal">
-                                  {new Date(msg.receivedAt).toLocaleTimeString('en-US', {
+                              <p className="text-xs text-muted-foreground flex items-center gap-2 flex-wrap">
+                                <span className="font-medium text-foreground">
+                                  {item.isFromUser ? 'You' : (item.senderName || item.senderEmail || 'Contact')}
+                                </span>
+                                <span>
+                                  {new Date(item.receivedAt).toLocaleDateString('en-US', {
+                                    month: 'short',
+                                    day: 'numeric',
+                                    year: 'numeric',
+                                  })}
+                                </span>
+                                <span>
+                                  {new Date(item.receivedAt).toLocaleTimeString('en-US', {
                                     hour: 'numeric',
                                     minute: '2-digit',
                                   })}
                                 </span>
                               </p>
-                              <p className="text-sm whitespace-pre-wrap break-words">{msg.bodyText}</p>
+                              <p className="text-xs font-medium text-foreground mt-0.5 truncate" title={item.subject}>
+                                {item.subject}
+                              </p>
+                              {item.bodyText && (
+                                <p className="text-sm mt-1 whitespace-pre-wrap break-words line-clamp-3">
+                                  {item.bodyText}
+                                </p>
+                              )}
                             </div>
                           </div>
                         ))}

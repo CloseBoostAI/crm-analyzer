@@ -18,7 +18,6 @@ export async function POST(request: NextRequest) {
       deal_stage: 'The current stage/status of the deal (e.g., Proposal, Negotiation, Won, Lost)',
       deal_owner: 'The person responsible for or assigned to the deal',
       amount: 'The monetary value/amount of the deal',
-      priority: 'Priority level (High, Medium, Low)',
       last_activity: 'Date of the most recent activity or interaction',
       notes: 'Any notes, comments, or descriptions',
       close_date: 'Expected or actual close/completion date',

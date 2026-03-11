@@ -10,7 +10,6 @@ export type OrgDeal = {
   owner: string;
   contact: string;
   amount: number;
-  priority: string;
   contactId: string;
   notes: string;
   closeDate: string;
@@ -86,7 +85,6 @@ export async function GET() {
       owner: row.owner,
       contact: row.contact,
       amount: Number(row.amount),
-      priority: row.priority,
       contactId: row.contact_id || '',
       notes: row.notes || '',
       closeDate: row.close_date || '',

@@ -24,7 +24,6 @@ type FollowUp = {
   company: string
   reason: string
   suggestedDate: string
-  priority: "low" | "medium" | "high"
   status: "pending" | "scheduled" | "sent"
   emailDraft?: string
 }
@@ -37,7 +36,6 @@ export function FollowUpQueue() {
       company: "Acme Corp",
       reason: "No response after product demo",
       suggestedDate: "2023-11-22",
-      priority: "high",
       status: "pending",
     },
     {
@@ -46,7 +44,6 @@ export function FollowUpQueue() {
       company: "TechStart Inc",
       reason: "Requested pricing follow-up",
       suggestedDate: "2023-11-20",
-      priority: "medium",
       status: "scheduled",
     },
     {
@@ -55,7 +52,6 @@ export function FollowUpQueue() {
       company: "Innovate LLC",
       reason: "Contract renewal discussion",
       suggestedDate: "2023-11-25",
-      priority: "high",
       status: "pending",
     },
     {
@@ -64,7 +60,6 @@ export function FollowUpQueue() {
       company: "First Choice Partners",
       reason: "Feature request clarification",
       suggestedDate: "2023-11-21",
-      priority: "low",
       status: "sent",
     },
   ])
@@ -96,19 +91,6 @@ export function FollowUpQueue() {
       // In a real app, this would send the email
       setFollowUps(followUps.map((item) => (item.id === selectedFollowUp.id ? { ...item, status: "sent" } : item)))
       setIsDialogOpen(false)
-    }
-  }
-
-  const getPriorityColor = (priority: string) => {
-    switch (priority) {
-      case "low":
-        return "bg-green-100 text-green-800"
-      case "medium":
-        return "bg-yellow-100 text-yellow-800"
-      case "high":
-        return "bg-red-100 text-red-800"
-      default:
-        return "bg-gray-100 text-gray-800"
     }
   }
 
@@ -144,7 +126,6 @@ export function FollowUpQueue() {
                   <TableHead>Company</TableHead>
                   <TableHead>Reason</TableHead>
                   <TableHead>Suggested Date</TableHead>
-                  <TableHead>Priority</TableHead>
                   <TableHead>Status</TableHead>
                   <TableHead className="text-right">Actions</TableHead>
                 </TableRow>
@@ -159,11 +140,6 @@ export function FollowUpQueue() {
                     <TableCell>{followUp.company}</TableCell>
                     <TableCell>{followUp.reason}</TableCell>
                     <TableCell>{followUp.suggestedDate}</TableCell>
-                    <TableCell>
-                      <Badge variant="outline" className={getPriorityColor(followUp.priority)}>
-                        {followUp.priority.charAt(0).toUpperCase() + followUp.priority.slice(1)}
-                      </Badge>
-                    </TableCell>
                     <TableCell>
                       <Badge className={getStatusColor(followUp.status)}>
                         {followUp.status.charAt(0).toUpperCase() + followUp.status.slice(1)}

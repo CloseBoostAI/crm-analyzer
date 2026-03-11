@@ -13,7 +13,7 @@ import { useRouter } from 'next/navigation';
 import { saveDeals, saveCustomers, saveLogs, loadDeals, loadCustomers } from '@/lib/supabase/data';
 import { TARGET_FIELDS, tryAutoMap, applyMapping, type ColumnMapping } from '@/lib/column-mapper';
 import { useSettings } from '@/lib/settings-context';
-import { UNIVERSAL_DEAL_STAGES, matchDealStage, getDealStageLabel, getDealStageColor, cn, computeDealPriorities } from '@/lib/utils';
+import { UNIVERSAL_DEAL_STAGES, matchDealStage, getDealStageLabel, getDealStageColor, cn } from '@/lib/utils';
 import {
   DndContext,
   closestCenter,
@@ -234,7 +234,6 @@ interface DealFormData {
   dealStage: string;
   dealOwner: string;
   amount: string;
-  priority: string;
   lastActivity: string;
   associatedNote: string;
   closeDate: string;
@@ -243,7 +242,7 @@ interface DealFormData {
 export default function UploadPage() {
   const router = useRouter();
   const [files, setFiles] = useState<File[]>([]);
-  const emptyDeal: DealFormData = { recordId: '', dealName: '', company: '', contact: '', email: '', dealStage: '', dealOwner: '', amount: '', priority: '', lastActivity: '', associatedNote: '', closeDate: '' };
+  const emptyDeal: DealFormData = { recordId: '', dealName: '', company: '', contact: '', email: '', dealStage: '', dealOwner: '', amount: '', lastActivity: '', associatedNote: '', closeDate: '' };
   const [manualDeals, setManualDeals] = useState<DealFormData[]>([{ ...emptyDeal }]);
   const [uploading, setUploading] = useState(false);
   const [progress, setProgress] = useState(0);
@@ -341,7 +340,6 @@ export default function UploadPage() {
               owner: strip(record['Deal owner']),
               contact,
               amount: parsedAmount,
-              priority: 'Medium' as const, // assigned below from distribution
               contactId: '',
               notes: strip(record['Associated Note']),
               closeDate: strip(record['Close Date']),
@@ -376,8 +374,6 @@ export default function UploadPage() {
           email: d.customer.email || '',
           company: d.customer.company || d.deal.name,
         }));
-        const priorities = computeDealPriorities(dealsOnly);
-        dealsOnly.forEach((d, i) => { d.priority = priorities[i]; });
         const customersOnly = deals.map(d => d.customer);
         const logsOnly = customersOnly.flatMap(customer =>
           customer.interactions.map(i => ({ ...i, customerId: customer.id }))
@@ -531,7 +527,6 @@ export default function UploadPage() {
           owner,
           contact,
           amount: parsedAmount,
-          priority: 'Medium' as const, // assigned below from distribution
           contactId: '',
           notes,
           closeDate,
@@ -565,8 +560,6 @@ export default function UploadPage() {
       }).filter(({ deal }) => deal.name || deal.company || deal.contact);
 
       const dealsOnly = results.map(r => r.deal);
-      const priorities = computeDealPriorities(dealsOnly);
-      dealsOnly.forEach((d, i) => { d.priority = priorities[i]; });
       const customersOnly = results.map(r => r.customer);
       const logsOnly = customersOnly.flatMap(customer =>
         customer.interactions.map(i => ({ ...i, customerId: customer.id }))
@@ -704,7 +697,7 @@ export default function UploadPage() {
       return;
     }
 
-    const headers = ['Record ID', 'Deal Name', 'Company', 'Contact', 'Email', 'Deal Stage', 'Deal owner', 'Amount', 'Priority', 'Last Activity', 'Associated Note', 'Close Date'];
+    const headers = ['Record ID', 'Deal Name', 'Company', 'Contact', 'Email', 'Deal Stage', 'Deal owner', 'Amount', 'Last Activity', 'Associated Note', 'Close Date'];
     const csvRows = [
       headers.join(','),
       ...validDeals.map(deal => [
@@ -716,7 +709,6 @@ export default function UploadPage() {
         deal.dealStage || '',
         deal.dealOwner || '',
         deal.amount || '0',
-        deal.priority || '',
         deal.lastActivity || '',
         deal.associatedNote || '',
         deal.closeDate || ''
@@ -1222,20 +1214,6 @@ GreenField Retail,Amanda Rodriguez,2026-02-25,Negotiation,63200,Pricing adjusted
                             value={deal.amount}
                             onChange={(e) => updateDeal(index, 'amount', e.target.value)}
                           />
-                        </div>
-                        <div className="space-y-2">
-                          <Label htmlFor={`priority-${index}`}>Priority</Label>
-                          <select
-                            id={`priority-${index}`}
-                            value={deal.priority}
-                            onChange={(e) => updateDeal(index, 'priority', e.target.value)}
-                            className="flex h-10 w-full rounded-md border border-input bg-background px-3 py-2 text-sm ring-offset-background focus-visible:outline-none focus-visible:ring-2 focus-visible:ring-ring focus-visible:ring-offset-2"
-                          >
-                            <option value="">Auto (based on amount)</option>
-                            <option value="High">High</option>
-                            <option value="Medium">Medium</option>
-                            <option value="Low">Low</option>
-                          </select>
                         </div>
                         <div className="space-y-2">
                           <Label htmlFor={`lastActivity-${index}`}>Last Activity</Label>

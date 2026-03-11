@@ -12,13 +12,6 @@ export async function analyzeCustomerLogs(logs: any[], notes: { [key: string]: s
         const customerNotes = notes[log.id] || []
         const notesText = customerNotes.join(" ")
 
-        let priority = "medium"
-        if (notesText.includes("urgent") || notesText.includes("important")) {
-          priority = "high"
-        } else if (notesText.includes("low priority") || notesText.includes("no rush")) {
-          priority = "low"
-        }
-
         let reason = "Regular follow-up"
         if (notesText.includes("feature")) {
           reason = "Discuss new features"
@@ -33,7 +26,6 @@ export async function analyzeCustomerLogs(logs: any[], notes: { [key: string]: s
         return {
           customerId: log.id,
           reason,
-          priority,
           suggestedDate: new Date(Date.now() + Math.random() * 7 * 86400000), // Random date within next 7 days
         }
       })

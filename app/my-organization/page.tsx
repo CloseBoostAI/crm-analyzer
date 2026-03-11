@@ -41,12 +41,6 @@ function getStageStyle(stage: string) {
   return 'bg-gray-100 text-gray-800 dark:bg-gray-800 dark:text-gray-300';
 }
 
-function getPriorityStyle(priority: string) {
-  if (priority === 'High') return 'bg-red-100 text-red-800 dark:bg-red-900/50 dark:text-red-300';
-  if (priority === 'Medium') return 'bg-yellow-100 text-yellow-800 dark:bg-yellow-900/50 dark:text-yellow-300';
-  return 'bg-green-100 text-green-800 dark:bg-green-900/50 dark:text-green-300';
-}
-
 function memberLabel(m: MemberInfo) {
   return m.fullName || m.email || 'Unknown';
 }
@@ -207,7 +201,6 @@ export default function MyOrganizationPage() {
                     <TableHead>Stage</TableHead>
                     <TableHead>Deal Owner</TableHead>
                     <TableHead className="text-right">Amount</TableHead>
-                    <TableHead>Priority</TableHead>
                     <TableHead>Last Activity</TableHead>
                   </TableRow>
                 </TableHeader>
@@ -256,15 +249,6 @@ export default function MyOrganizationPage() {
                       <TableCell>{deal.owner}</TableCell>
                       <TableCell className="text-right font-medium">
                         ${deal.amount.toLocaleString('en-US', { minimumFractionDigits: 0, maximumFractionDigits: 0 })}
-                      </TableCell>
-                      <TableCell>
-                        <span
-                          className={`inline-flex items-center px-2.5 py-0.5 rounded-full text-xs font-medium ${getPriorityStyle(
-                            deal.priority
-                          )}`}
-                        >
-                          {deal.priority}
-                        </span>
                       </TableCell>
                       <TableCell className="text-sm text-muted-foreground">
                         {deal.lastActivity

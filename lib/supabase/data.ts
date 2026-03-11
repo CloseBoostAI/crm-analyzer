@@ -48,7 +48,6 @@ export async function saveDeals(deals: Deal[]) {
     owner: d.owner || '',
     contact: d.contact || '',
     amount: d.amount || 0,
-    priority: d.priority || 'Low',
     contact_id: d.contactId || '',
     notes: d.notes || '',
     close_date: d.closeDate || '',
@@ -80,7 +79,6 @@ export async function loadDeals(): Promise<Deal[]> {
     owner: row.owner,
     contact: row.contact,
     amount: Number(row.amount),
-    priority: row.priority as Deal['priority'],
     contactId: row.contact_id,
     notes: row.notes,
     closeDate: row.close_date,
@@ -101,7 +99,6 @@ export async function updateDeal(dealId: string, updates: Partial<Deal>) {
   if (updates.owner !== undefined) dbUpdates.owner = updates.owner;
   if (updates.contact !== undefined) dbUpdates.contact = updates.contact;
   if (updates.amount !== undefined) dbUpdates.amount = updates.amount;
-  if (updates.priority !== undefined) dbUpdates.priority = updates.priority;
   if (updates.email !== undefined) dbUpdates.email = updates.email;
   if (updates.notes !== undefined) dbUpdates.notes = updates.notes;
   if (updates.closeDate !== undefined) dbUpdates.close_date = updates.closeDate;

@@ -99,7 +99,6 @@ export type Deal = {
   owner: string;
   contact: string;
   amount: number;
-  priority: 'High' | 'Medium' | 'Low';
   contactId: string;
   notes: string;
   closeDate: string;
@@ -328,82 +327,3 @@ export const DEFAULT_DEAL_STAGE_KEYS = [
   'decisionmakerboughtin', 'contractsent', 'closedwon', 'closedlost'
 ];
 
-/** Stage keys ordered by pipeline position (early → late). Later stages = higher priority for active deals. */
-const STAGE_PRIORITY_ORDER: Record<string, number> = (() => {
-  const order: Record<string, number> = {};
-  UNIVERSAL_DEAL_STAGES.forEach((s, i) => { order[s.key] = i; });
-  return order;
-})();
-
-/** Parse date string (MM/DD/YYYY or YYYY-MM-DD) to timestamp, or return 0 if invalid */
-function parseActivityDate(s: string): number {
-  if (!s || !s.trim()) return 0;
-  const d = new Date(s.trim());
-  return isNaN(d.getTime()) ? 0 : d.getTime();
-}
-
-/**
- * Compute deal priorities based on distribution across the pipeline:
- * - Amount: top tertile = High, middle = Medium, bottom = Low (by deal size)
- * - Stage: later pipeline stages (Proposal, Negotiation, etc.) boost priority; Closed Lost = lower
- * - Last activity: more recent = higher priority; stale (21+ days) = lower
- */
-export function computeDealPriorities<T extends { amount: number; stage: string; lastActivity: string }>(
-  deals: T[]
-): ('High' | 'Medium' | 'Low')[] {
-  if (deals.length === 0) return [];
-
-  const now = Date.now();
-  const oneDay = 86400000;
-
-  // Score each deal 0–1 (higher = more priority)
-  const scores = deals.map((d, idx) => {
-    // Amount score: rank by amount (top = 1, bottom = 0)
-    const sortedByAmount = [...deals].sort((a, b) => b.amount - a.amount);
-    const amountRank = sortedByAmount.findIndex(x => x === d);
-    const amountScore = deals.length > 1 ? 1 - amountRank / (deals.length - 1) : 0.5;
-
-    // Stage score: later stages = higher (except closed lost)
-    const stageKey = matchDealStage(d.stage);
-    const stageIdx = stageKey ? STAGE_PRIORITY_ORDER[stageKey] ?? -1 : -1;
-    let stageScore = 0.5;
-    if (stageKey === 'closedlost' || stageKey === 'closedcancelled' || stageKey === 'closednodecision') {
-      stageScore = 0.2; // Closed lost = low
-    } else if (stageKey === 'closedwon') {
-      stageScore = 0.4; // Won = medium (no urgent action)
-    } else if (stageIdx >= 0) {
-      // Active deals: later in pipeline = higher (proposal, negotiation, etc.)
-      const maxIdx = Math.max(...Object.values(STAGE_PRIORITY_ORDER));
-      stageScore = 0.5 + 0.5 * (stageIdx / Math.max(1, maxIdx));
-    }
-
-    // Activity score: recent = higher, stale = lower
-    const ts = parseActivityDate(d.lastActivity);
-    let activityScore = 0.5;
-    if (ts > 0) {
-      const daysSince = (now - ts) / oneDay;
-      if (daysSince <= 7) activityScore = 1;
-      else if (daysSince <= 14) activityScore = 0.8;
-      else if (daysSince <= 21) activityScore = 0.6;
-      else activityScore = Math.max(0.2, 0.5 - daysSince / 60); // Stale = lower
-    }
-
-    // Weighted composite: amount 40%, stage 35%, activity 25%
-    const composite = amountScore * 0.4 + stageScore * 0.35 + activityScore * 0.25;
-    return { idx, composite };
-  });
-
-  // Assign High/Medium/Low by tertiles of composite score (top 33% High, middle 33% Medium, bottom 34% Low)
-  const sorted = [...scores].sort((a, b) => b.composite - a.composite);
-  const n = sorted.length;
-  const highCount = Math.max(1, Math.ceil(n / 3));
-  const mediumCount = Math.max(1, Math.ceil(n / 3));
-  const highThreshold = sorted[highCount - 1]?.composite ?? 1;
-  const mediumThreshold = sorted[highCount + mediumCount - 1]?.composite ?? 0.5;
-
-  return scores.map(s => {
-    if (s.composite >= highThreshold) return 'High' as const;
-    if (s.composite >= mediumThreshold) return 'Medium' as const;
-    return 'Low' as const;
-  });
-}

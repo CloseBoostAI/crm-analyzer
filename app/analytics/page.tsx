@@ -23,7 +23,7 @@ import {
   DialogTrigger,
 } from "@/components/ui/dialog";
 import { toast } from "sonner";
-import { type Customer, type CRMLog, type Deal, getDealStageColor, getDealDisplayName, getDealStageLabel, UNIVERSAL_DEAL_STAGES, matchDealStage, computeDealPriorities, htmlToPlainText } from '@/lib/utils';
+import { type Customer, type CRMLog, type Deal, getDealStageColor, getDealDisplayName, getDealStageLabel, UNIVERSAL_DEAL_STAGES, matchDealStage, htmlToPlainText } from '@/lib/utils';
 import { Slider } from "@/components/ui/slider";
 import { FileText, CheckSquare, Trash2, Pencil, ArrowUp, ArrowDown, ArrowUpDown, Mail, Phone, Calendar, Clock, Send, Sparkles, AlertTriangle, Eye, X, Target, Plus, Users, Inbox, Check, Reply, RefreshCw } from "lucide-react";
 import { Input } from "@/components/ui/input";
@@ -212,7 +212,7 @@ function buildSmartTasks(deals: Deal[], inboundEmails: InboundEmailForTasks[] = 
       dealStage: deal.stage, dealContact: deal.contact, dealEmail: deal.email,
     };
 
-    const staleThreshold = deal.priority === 'High' ? 5 : deal.priority === 'Medium' ? 10 : 14;
+    const staleThreshold = isHighValue ? 5 : 14;
     if (daysSinceActivity > staleThreshold) {
       results.push({
         id: `stale_${deal.id}`, category: 'email',
@@ -221,7 +221,7 @@ function buildSmartTasks(deals: Deal[], inboundEmails: InboundEmailForTasks[] = 
           : `Send follow-up email to ${deal.contact}`,
         description: `${getDealDisplayName(deal)} has had no activity in ${daysSinceActivity} days. Re-engage with a personalized follow-up.`,
         reason: `No activity in ${daysSinceActivity} days`,
-        priority: deal.priority === 'High' || daysSinceActivity > 21 ? 'HIGH' : daysSinceActivity > 14 ? 'MEDIUM' : 'LOW',
+        priority: isHighValue || daysSinceActivity > 21 ? 'HIGH' : daysSinceActivity > 14 ? 'MEDIUM' : 'LOW',
         dueDate: now, ...base,
       });
     }
@@ -664,7 +664,7 @@ export default function AnalyticsPage() {
             setTasks([]);
             setOrgMembers([]);
           } else {
-            const orgDeals = (dealsJson.deals || []).map((d: { id: string; name: string; company: string; stage: string; owner: string; contact: string; amount: number; priority: string; contactId: string; notes: string; closeDate: string; email: string; lastActivity: string; userId: string }) => ({
+            const orgDeals = (dealsJson.deals || []).map((d: { id: string; name: string; company: string; stage: string; owner: string; contact: string; amount: number; contactId: string; notes: string; closeDate: string; email: string; lastActivity: string; userId: string }) => ({
               id: d.id,
               name: d.name,
               company: d.company,
@@ -672,7 +672,6 @@ export default function AnalyticsPage() {
               owner: d.owner,
               contact: d.contact,
               amount: d.amount,
-              priority: d.priority as Deal['priority'],
               contactId: d.contactId,
               notes: d.notes,
               closeDate: d.closeDate,
@@ -702,20 +701,7 @@ export default function AnalyticsPage() {
             loadTasks(),
           ]);
 
-          // Recalculate priorities on load (deal size, stage, last activity distribution)
-          if (dealsData.length > 0) {
-            const computedPriorities = computeDealPriorities(dealsData);
-            const toUpdate = dealsData
-              .map((d, i) => ({ deal: d, newPriority: computedPriorities[i] }))
-              .filter(({ deal, newPriority }) => deal.priority !== newPriority);
-            if (toUpdate.length > 0) {
-              await Promise.all(toUpdate.map(({ deal, newPriority }) => dbUpdateDeal(deal.id, { priority: newPriority })));
-            }
-            const dealsWithPriorities = dealsData.map((d, i) => ({ ...d, priority: computedPriorities[i] }));
-            setDeals(dealsWithPriorities);
-          } else {
-            setDeals(dealsData);
-          }
+          setDeals(dealsData);
           setTasks(tasksData);
         }
 
@@ -1297,7 +1283,6 @@ OUTPUT: The complete email only — greeting, body (label → Miner line → no-
 
                     if (sortColumn) {
                       const dir = sortDirection === "asc" ? 1 : -1;
-                      const priorityRank: Record<string, number> = { High: 0, Medium: 1, Low: 2 };
 
                       sortedDeals.sort((a, b) => {
                         let av: string | number, bv: string | number;
@@ -1309,7 +1294,6 @@ OUTPUT: The complete email only — greeting, body (label → Miner line → no-
                           case "dealStage": av = a.stage.toLowerCase(); bv = b.stage.toLowerCase(); break;
                           case "dealOwner": av = a.owner.toLowerCase(); bv = b.owner.toLowerCase(); break;
                           case "amount": av = a.amount; bv = b.amount; break;
-                          case "priority": av = priorityRank[a.priority] ?? 3; bv = priorityRank[b.priority] ?? 3; break;
                           case "lastActivity":
                             av = a.lastActivity ? new Date(a.lastActivity).getTime() : 0;
                             bv = b.lastActivity ? new Date(b.lastActivity).getTime() : 0;
@@ -1395,17 +1379,6 @@ OUTPUT: The complete email only — greeting, body (label → Miner line → no-
                             return (
                               <TableCell key={col.key} className="font-medium">
                                 ${deal.amount.toLocaleString('en-US', { minimumFractionDigits: 0, maximumFractionDigits: 0 })}
-                              </TableCell>
-                            )
-                          case "priority":
-                            return (
-                              <TableCell key={col.key}>
-                                <span className={`inline-flex items-center px-2.5 py-0.5 rounded-full text-xs font-medium
-                                  ${deal.priority === 'High' ? 'bg-red-100 text-red-800 dark:bg-red-900/50 dark:text-red-300' : 
-                                    deal.priority === 'Medium' ? 'bg-yellow-100 text-yellow-800 dark:bg-yellow-900/50 dark:text-yellow-300' : 
-                                    'bg-green-100 text-green-800 dark:bg-green-900/50 dark:text-green-300'}`}>
-                                  {deal.priority}
-                                </span>
                               </TableCell>
                             )
                           case "lastActivity":
@@ -1576,24 +1549,6 @@ OUTPUT: The complete email only — greeting, body (label → Miner line → no-
                             value={editingDeal.amount}
                             onChange={(e) => setEditingDeal({ ...editingDeal, amount: Number(e.target.value) })}
                           />
-                        </div>
-                        <div className="grid grid-cols-4 items-center gap-4">
-                          <Label className="text-right">Priority</Label>
-                          <div className="col-span-3">
-                            <Select
-                              value={editingDeal.priority}
-                              onValueChange={(value: 'High' | 'Medium' | 'Low') => setEditingDeal({ ...editingDeal, priority: value })}
-                            >
-                              <SelectTrigger>
-                                <SelectValue />
-                              </SelectTrigger>
-                              <SelectContent>
-                                <SelectItem value="High">High</SelectItem>
-                                <SelectItem value="Medium">Medium</SelectItem>
-                                <SelectItem value="Low">Low</SelectItem>
-                              </SelectContent>
-                            </Select>
-                          </div>
                         </div>
                         <div className="grid grid-cols-4 items-center gap-4">
                           <Label className="text-right">Last Activity</Label>
@@ -2689,23 +2644,6 @@ OUTPUT: The complete email only — greeting, body (label → Miner line → no-
                 </Card>
                 
                 <Card className="p-4 border rounded-lg border-border/80 bg-card hover:shadow-md hover:border-primary/20 transition-all">
-                  <p className="text-sm text-muted-foreground font-medium">High Priority</p>
-                  <div className="flex items-end gap-2">
-                    <p className="font-heading text-2xl font-bold">
-                      ${filteredDeals.filter(d => d.priority === 'High')
-                             .reduce((sum, d) => sum + d.amount, 0)
-                             .toLocaleString()}
-                    </p>
-                    <p className="text-sm text-red-600 mb-1">
-                      ({filteredDeals.filter(d => d.priority === 'High').length} deals)
-                    </p>
-                  </div>
-                  <p className="text-xs text-gray-400 mt-1">
-                    {Math.round(filteredDeals.filter(d => d.priority === 'High').length / Math.max(1, filteredDeals.length) * 100)}% of pipeline
-                  </p>
-                </Card>
-
-                <Card className="p-4 border rounded-lg border-border/80 bg-card hover:shadow-md hover:border-primary/20 transition-all">
                   <p className="text-sm text-muted-foreground font-medium">Avg Closed Deal Size</p>
                   <p className="font-heading text-2xl font-bold">
                     {(() => {
@@ -2887,8 +2825,8 @@ OUTPUT: The complete email only — greeting, body (label → Miner line → no-
                 </Card>
               </div>
 
-              {/* Insights: Deals Needing Attention & Priority Breakdown */}
-              <div className="grid grid-cols-1 md:grid-cols-2 gap-8 mt-8">
+              {/* Insights: Deals Needing Attention */}
+              <div className="grid grid-cols-1 gap-8 mt-8">
                 <Card className="p-4 border-border/80">
                   <h4 className="font-heading font-medium mb-3 flex items-center gap-2">
                     <AlertTriangle className="h-4 w-4 text-amber-600" />
@@ -2912,30 +2850,6 @@ OUTPUT: The complete email only — greeting, body (label → Miner line → no-
                     ) : (
                       <p className="text-sm text-gray-500 dark:text-gray-400">All deals are up to date. Great job!</p>
                     )}
-                  </div>
-                </Card>
-
-                <Card className="p-4 border-border/80">
-                  <h4 className="font-heading font-medium mb-4 flex items-center gap-2">
-                    <Target className="h-4 w-4" />
-                    Priority Breakdown
-                  </h4>
-                  <div className="space-y-3">
-                    {(['High', 'Medium', 'Low'] as const).map(priority => {
-                      const priorityDeals = filteredDeals.filter(d => d.priority === priority);
-                      const totalValue = priorityDeals.reduce((sum, d) => sum + d.amount, 0);
-                      const pct = filteredDeals.length > 0 ? Math.round(priorityDeals.length / filteredDeals.length * 100) : 0;
-                      const colors = { High: 'text-red-600', Medium: 'text-amber-600', Low: 'text-gray-600 dark:text-gray-400' };
-                      return (
-                        <div key={priority} className="flex justify-between items-center py-2 border-b border-gray-100 dark:border-gray-800 last:border-0">
-                          <div>
-                            <p className={`text-sm font-medium ${colors[priority]}`}>{priority} Priority</p>
-                            <p className="text-xs text-gray-500 dark:text-gray-400">{priorityDeals.length} deals ({pct}%)</p>
-                          </div>
-                          <p className="text-sm font-semibold">${totalValue.toLocaleString()}</p>
-                        </div>
-                      );
-                    })}
                   </div>
                 </Card>
               </div>

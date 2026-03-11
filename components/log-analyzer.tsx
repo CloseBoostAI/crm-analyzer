@@ -18,7 +18,6 @@ type LogEntry = {
   interaction: string
   date: string
   status: "new" | "contacted" | "follow-up" | "closed"
-  priority: "low" | "medium" | "high"
   lastContact: string
 }
 
@@ -31,7 +30,6 @@ export function LogAnalyzer() {
       interaction: "Product demo call",
       date: "2023-11-15",
       status: "follow-up",
-      priority: "high",
       lastContact: "7 days ago",
     },
     {
@@ -40,7 +38,6 @@ export function LogAnalyzer() {
       interaction: "Pricing inquiry",
       date: "2023-11-10",
       status: "contacted",
-      priority: "medium",
       lastContact: "3 days ago",
     },
     {
@@ -49,7 +46,6 @@ export function LogAnalyzer() {
       interaction: "Support ticket",
       date: "2023-11-18",
       status: "new",
-      priority: "low",
       lastContact: "1 day ago",
     },
     {
@@ -58,7 +54,6 @@ export function LogAnalyzer() {
       interaction: "Contract renewal discussion",
       date: "2023-11-05",
       status: "follow-up",
-      priority: "high",
       lastContact: "14 days ago",
     },
     {
@@ -67,7 +62,6 @@ export function LogAnalyzer() {
       interaction: "Feature request",
       date: "2023-11-12",
       status: "contacted",
-      priority: "medium",
       lastContact: "5 days ago",
     },
   ])
@@ -122,19 +116,6 @@ export function LogAnalyzer() {
     }
   }
 
-  const getPriorityColor = (priority: string) => {
-    switch (priority) {
-      case "low":
-        return "bg-green-100 text-green-800"
-      case "medium":
-        return "bg-yellow-100 text-yellow-800"
-      case "high":
-        return "bg-red-100 text-red-800"
-      default:
-        return "bg-gray-100 text-gray-800"
-    }
-  }
-
   return (
     <div className="space-y-4">
       <Card>
@@ -182,7 +163,6 @@ export function LogAnalyzer() {
                   <TableHead>Interaction</TableHead>
                   <TableHead>Date</TableHead>
                   <TableHead>Status</TableHead>
-                  <TableHead>Priority</TableHead>
                   <TableHead>Last Contact</TableHead>
                 </TableRow>
               </TableHeader>
@@ -195,11 +175,6 @@ export function LogAnalyzer() {
                     <TableCell>
                       <Badge variant="secondary" className={`${getStatusColor(log.status)} text-white`}>
                         {log.status.charAt(0).toUpperCase() + log.status.slice(1)}
-                      </Badge>
-                    </TableCell>
-                    <TableCell>
-                      <Badge variant="outline" className={getPriorityColor(log.priority)}>
-                        {log.priority.charAt(0).toUpperCase() + log.priority.slice(1)}
                       </Badge>
                     </TableCell>
                     <TableCell>{log.lastContact}</TableCell>

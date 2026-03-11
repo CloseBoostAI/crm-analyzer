@@ -7,7 +7,6 @@ export const TARGET_FIELDS = [
   { key: 'deal_stage', label: 'Deal Stage' },
   { key: 'deal_owner', label: 'Deal Owner' },
   { key: 'amount', label: 'Amount' },
-  { key: 'priority', label: 'Priority' },
   { key: 'last_activity', label: 'Last Activity' },
   { key: 'notes', label: 'Notes' },
   { key: 'close_date', label: 'Close Date' },
@@ -51,9 +50,6 @@ const FIELD_ALIASES: Record<TargetFieldKey, string[]> = {
     'amount', 'value', 'deal value', 'deal amount', 'revenue', 'price',
     'total', 'contract value', 'arr', 'mrr', 'worth', 'budget',
     'total value', 'contract amount', 'deal size',
-  ],
-  priority: [
-    'priority', 'importance', 'urgency', 'tier', 'rank', 'deal priority',
   ],
   last_activity: [
     'last activity', 'last contact', 'last interaction', 'last touched',

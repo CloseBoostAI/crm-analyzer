@@ -43,7 +43,6 @@ export type DealForDialog = {
   owner: string;
   contact: string;
   amount: number;
-  priority: string;
   notes: string;
   closeDate: string;
   email: string;
@@ -53,12 +52,6 @@ export type DealForDialog = {
   memberName?: string | null;
   createdAt?: string;
 };
-
-function getPriorityStyle(priority: string) {
-  if (priority === 'High') return 'bg-red-100 text-red-800 dark:bg-red-900/50 dark:text-red-300';
-  if (priority === 'Medium') return 'bg-yellow-100 text-yellow-800 dark:bg-yellow-900/50 dark:text-yellow-300';
-  return 'bg-green-100 text-green-800 dark:bg-green-900/50 dark:text-green-300';
-}
 
 type Props = {
   deal: DealForDialog | null;
@@ -189,12 +182,6 @@ export function DealDetailsDialog({ deal, open, onOpenChange, onNotesSaved }: Pr
                       <strong className="text-foreground">Stage:</strong>{' '}
                       <span className={`inline-flex items-center px-2 py-0.5 rounded-full text-xs font-medium ${getDealStageColor(deal.stage).bg} ${getDealStageColor(deal.stage).text}`}>
                         {deal.stage}
-                      </span>
-                    </p>
-                    <p>
-                      <strong className="text-foreground">Priority:</strong>{' '}
-                      <span className={`inline-flex items-center px-2 py-0.5 rounded-full text-xs font-medium ${getPriorityStyle(deal.priority)}`}>
-                        {deal.priority}
                       </span>
                     </p>
                     <p><strong className="text-foreground">Owner:</strong> {deal.owner || '—'}</p>

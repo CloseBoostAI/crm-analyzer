@@ -9,7 +9,6 @@ create table if not exists public.deals (
   owner text not null default '',
   contact text not null default '',
   amount numeric not null default 0,
-  priority text not null default 'Low',
   contact_id text not null default '',
   notes text not null default '',
   close_date text not null default '',

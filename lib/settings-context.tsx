@@ -16,7 +16,6 @@ export type DealsColumnKey =
   | "dealStage"
   | "dealOwner"
   | "amount"
-  | "priority"
   | "lastActivity"
   | "notes"
   | "actions"
@@ -29,14 +28,13 @@ export const DEALS_COLUMNS: { key: DealsColumnKey; label: string; required?: boo
   { key: "dealStage", label: "Deal Stage" },
   { key: "dealOwner", label: "Deal Owner" },
   { key: "amount", label: "Amount" },
-  { key: "priority", label: "Priority" },
   { key: "lastActivity", label: "Last Activity" },
   { key: "notes", label: "Notes" },
   { key: "actions", label: "Actions", required: true },
 ]
 
 const DEFAULT_COLUMN_ORDER: DealsColumnKey[] = [
-  "dealName", "company", "contact", "email", "dealStage", "dealOwner", "amount", "priority", "lastActivity", "notes", "actions",
+  "dealName", "company", "contact", "email", "dealStage", "dealOwner", "amount", "lastActivity", "notes", "actions",
 ]
 
 // ── Profile / Company Setup ──
@@ -98,7 +96,6 @@ const DEFAULT_SETTINGS: Settings = {
     dealStage: true,
     dealOwner: false,
     amount: true,
-    priority: true,
     lastActivity: true,
     notes: true,
     actions: true,
@@ -157,11 +154,7 @@ function mergeWithDefaults(parsed: Record<string, unknown>): Settings {
     },
     profile: { ...DEFAULT_SETTINGS.profile, ...(parsed.profile as object) },
     email: { ...DEFAULT_SETTINGS.email, ...(parsed.email as object) },
-    tasks: (() => {
-      const merged = { ...DEFAULT_SETTINGS.tasks, ...(parsed.tasks as object) };
-      delete (merged as Record<string, unknown>).defaultPriority;
-      return merged;
-    })(),
+    tasks: { ...DEFAULT_SETTINGS.tasks, ...(parsed.tasks as object) },
     appearance: { ...DEFAULT_SETTINGS.appearance, ...(parsed.appearance as object) },
     statistics: { ...DEFAULT_SETTINGS.statistics, ...(parsed.statistics as object) },
   }

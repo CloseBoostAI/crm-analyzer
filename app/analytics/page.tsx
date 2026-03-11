@@ -449,6 +449,8 @@ export default function AnalyticsPage() {
   const [emailTaskTarget, setEmailTaskTarget] = useState<SmartTask | null>(null);
   const [taskEmailContent, setTaskEmailContent] = useState('');
   const [generatingTaskEmail, setGeneratingTaskEmail] = useState(false);
+  const [sendingTaskEmail, setSendingTaskEmail] = useState(false);
+  const [refreshingTasks, setRefreshingTasks] = useState(false);
   const [editingDeal, setEditingDeal] = useState<Deal | null>(null);
   const [editDialogOpen, setEditDialogOpen] = useState(false);
   const [confirmDelete, setConfirmDelete] = useState(false);
@@ -632,6 +634,57 @@ export default function AnalyticsPage() {
     update();
     return () => observer.disconnect();
   }, [activeTab, filteredDeals.length]);
+
+  const refreshTasksData = useCallback(async () => {
+    setRefreshingTasks(true);
+    try {
+      const supabase = createClient();
+      const { data: { user } } = await supabase.auth.getUser();
+      const orgRes = await fetch('/api/org');
+      const orgData = await orgRes.json();
+      const leader = !orgData?.error && (orgData?.membership?.role === 'owner' || orgData?.membership?.role === 'admin');
+
+      const inboundRes = fetch('/api/org/inbound-emails?status=pending&limit=100');
+
+      if (leader) {
+        const [dealsRes, tasksRes] = await Promise.all([
+          fetch('/api/org/deals'),
+          fetch('/api/org/tasks'),
+        ]);
+        const dealsJson = await dealsRes.json();
+        const tasksJson = await tasksRes.json();
+        if (!dealsJson.error && !tasksJson.error) {
+          const orgDeals = (dealsJson.deals || []).map((d: { id: string; name: string; company: string; stage: string; owner: string; contact: string; amount: number; contactId: string; notes: string; closeDate: string; email: string; lastActivity: string; userId: string }) => ({
+            id: d.id, name: d.name, company: d.company, stage: d.stage, owner: d.owner, contact: d.contact,
+            amount: d.amount, contactId: d.contactId, notes: d.notes, closeDate: d.closeDate, email: d.email,
+            lastActivity: d.lastActivity, userId: d.userId,
+          }));
+          const orgTasks = (tasksJson.tasks || []).map((t: { id: string; title: string; status: string; dueDate: number; priority: string; associatedDealId?: string; associatedDealName?: string; assignedTo: string; notes?: string; userId: string }) => ({
+            id: t.id, title: t.title, status: t.status as Task['status'], dueDate: t.dueDate,
+            priority: t.priority as Task['priority'], associatedDealId: t.associatedDealId,
+            associatedDealName: t.associatedDealName, assignedTo: t.assignedTo, notes: t.notes, userId: t.userId,
+          }));
+          setDeals(orgDeals);
+          setTasks(orgTasks);
+        }
+      } else {
+        const [dealsData, tasksData] = await Promise.all([loadDeals(), loadTasks()]);
+        setDeals(dealsData);
+        setTasks(tasksData);
+      }
+
+      try {
+        const inboundJson = await (await inboundRes).json();
+        if (inboundJson?.emails) setInboundEmails(inboundJson.emails);
+      } catch { /* inbound may fail if not in org */ }
+      toast.success('Tasks refreshed');
+    } catch (error) {
+      console.error('Refresh error:', error);
+      toast.error('Failed to refresh');
+    } finally {
+      setRefreshingTasks(false);
+    }
+  }, []);
 
   useEffect(() => {
     const fetchData = async () => {
@@ -966,6 +1019,54 @@ Recent Interactions: ${customer.interactions.map(i => i.notes).join(', ')}`
       await saveDismissedRecommendations([]);
     } catch (error) {
       console.error('Error clearing dismissed:', error);
+    }
+  };
+
+  const handleSendTaskEmail = async () => {
+    if (!emailTaskTarget?.dealEmail?.trim() || !taskEmailContent.trim()) {
+      toast.error('No email address or content to send');
+      return;
+    }
+    setSendingTaskEmail(true);
+    try {
+      const res = await fetch('/api/org/send-email', {
+        method: 'POST',
+        headers: { 'Content-Type': 'application/json' },
+        body: JSON.stringify({
+          to: emailTaskTarget.dealEmail.trim(),
+          toName: emailTaskTarget.dealContact || undefined,
+          subject: 'Following up',
+          body: taskEmailContent.trim(),
+        }),
+      });
+      const data = await res.json();
+      if (!res.ok) throw new Error(data.error || 'Failed to send');
+
+      const deal = filteredDeals.find(d => d.id === emailTaskTarget.dealId);
+      if (isOrgLeader && deal) {
+        const dealWithUserId = deal as DealWithUserId;
+        const targetUserId = dealWithUserId.userId;
+        const patchUrl = targetUserId
+          ? `/api/org/deals/${emailTaskTarget.dealId}?userId=${targetUserId}`
+          : `/api/org/deals/${emailTaskTarget.dealId}`;
+        await fetch(patchUrl, {
+          method: 'PATCH',
+          headers: { 'Content-Type': 'application/json' },
+          body: JSON.stringify({ notes: deal.notes || '' }),
+        });
+      } else if (deal) {
+        await dbUpdateDeal(emailTaskTarget.dealId, { lastActivity: new Date().toISOString() });
+      }
+
+      handleDismissSmartTask(emailTaskTarget.id);
+      setEmailTaskTarget(null);
+      setTaskEmailContent('');
+      await refreshTasksData();
+      toast.success('Email sent! Task removed from recommendations.');
+    } catch (err: unknown) {
+      toast.error(err instanceof Error ? err.message : 'Failed to send email');
+    } finally {
+      setSendingTaskEmail(false);
     }
   };
 
@@ -1779,11 +1880,23 @@ OUTPUT: The complete email only — greeting, body (label → Miner line → no-
                             Based on deal stage, activity, notes, and close dates
                           </CardDescription>
                         </div>
-                        {dismissedTaskIds.size > 0 && (
-                          <Button variant="ghost" size="sm" onClick={handleClearDismissed} className="text-muted-foreground text-xs">
-                            Reset dismissed ({dismissedTaskIds.size})
+                        <div className="flex items-center gap-2">
+                          <Button
+                            variant="outline"
+                            size="sm"
+                            onClick={refreshTasksData}
+                            disabled={refreshingTasks}
+                            className="text-xs"
+                          >
+                            <RefreshCw className={`h-3.5 w-3.5 mr-1.5 ${refreshingTasks ? 'animate-spin' : ''}`} />
+                            {refreshingTasks ? 'Refreshing...' : 'Refresh tasks'}
                           </Button>
-                        )}
+                          {dismissedTaskIds.size > 0 && (
+                            <Button variant="ghost" size="sm" onClick={handleClearDismissed} className="text-muted-foreground text-xs">
+                              Reset dismissed ({dismissedTaskIds.size})
+                            </Button>
+                          )}
+                        </div>
                       </div>
                     </CardHeader>
                     <CardContent className="pt-0">
@@ -2127,7 +2240,7 @@ OUTPUT: The complete email only — greeting, body (label → Miner line → no-
                       <div className="rounded-lg border p-4 bg-muted/50 min-h-[200px]">
                         <pre className="whitespace-pre-wrap font-sans text-sm">{taskEmailContent}</pre>
                       </div>
-                      <div className="flex justify-end gap-3">
+                      <div className="flex justify-end gap-3 flex-wrap">
                         <Button variant="outline" onClick={() => setTaskEmailContent('')}>Clear</Button>
                         <Button
                           variant="outline"
@@ -2137,13 +2250,30 @@ OUTPUT: The complete email only — greeting, body (label → Miner line → no-
                           Regenerate
                         </Button>
                         <Button
-                          className="bg-green-600 hover:bg-green-700 text-white"
+                          variant="outline"
                           onClick={() => {
                             navigator.clipboard.writeText(taskEmailContent);
                             toast.success('Email copied to clipboard!');
                           }}
                         >
                           Copy
+                        </Button>
+                        <Button
+                          className="bg-primary hover:bg-primary/90 text-white"
+                          onClick={handleSendTaskEmail}
+                          disabled={sendingTaskEmail}
+                        >
+                          {sendingTaskEmail ? (
+                            <>
+                              <div className="mr-2 h-4 w-4 animate-spin rounded-full border-2 border-white border-t-transparent" />
+                              Sending...
+                            </>
+                          ) : (
+                            <>
+                              <Send className="h-4 w-4 mr-2" />
+                              Send
+                            </>
+                          )}
                         </Button>
                       </div>
                     </>

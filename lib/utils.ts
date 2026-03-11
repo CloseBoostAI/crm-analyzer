@@ -15,8 +15,11 @@ export function extractReplyBody(text: string): string {
   if (!trimmed) return '';
 
   // Common reply markers - find the earliest one and take content before it
+  // Match "On [date] [name] wrote:" - date format "Tue, Mar 10, 2026" or "3/10/2026" to avoid "is on Tuesday"
   const markers = [
-    /\n\s*On\s+[\s\S]*?wrote:\s*/i,           // Gmail/Apple: "On ... wrote:"
+    /\s+On\s+[A-Za-z]{3},\s*[A-Za-z]{3}\s+\d{1,2},\s*\d{4}[\s\S]*?wrote:\s*/i,  // "On Tue, Mar 10, 2026 ... wrote:"
+    /\s+On\s+\d{1,2}\/\d{1,2}\/\d{2,4}[\s\S]*?wrote:\s*/i,                     // "On 3/10/2026 ... wrote:"
+    /\s+On\s+[\s\S]*?wrote:\s*/i,                                             // Fallback: any "On ... wrote:"
     /\n-{3,}\s*Original Message\s*-{3,}/i,     // Outlook: -----Original Message-----
     /\n-{5,}\s*Original Message\s*-{5,}/i,
     /\nFrom:\s*[\s\S]*?To:\s*[\s\S]*?Subject:/i, // Outlook reply header

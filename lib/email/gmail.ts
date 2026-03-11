@@ -202,6 +202,22 @@ export async function searchGmailMessagesFrom(
   return res.json();
 }
 
+/** Search for messages we sent TO a recipient (user-initiated conversations) */
+export async function searchGmailMessagesTo(
+  accessToken: string,
+  toEmail: string,
+  maxResults = 10
+): Promise<GmailMessageList> {
+  const q = `to:${toEmail}`;
+  const params = new URLSearchParams({ maxResults: String(maxResults), q });
+  const url = `${GMAIL_API_BASE}/messages?${params.toString()}`;
+  const res = await fetch(url, {
+    headers: { Authorization: `Bearer ${accessToken}` },
+  });
+  if (!res.ok) return { messages: [] };
+  return res.json();
+}
+
 export async function getGmailMessage(accessToken: string, messageId: string): Promise<GmailMessage> {
   const url = `${GMAIL_API_BASE}/messages/${messageId}?format=full`;
   const res = await fetch(url, {

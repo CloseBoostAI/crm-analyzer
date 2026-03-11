@@ -1,7 +1,7 @@
 import { createClient } from '@/lib/supabase/server';
 import { createAdminClient } from '@/lib/supabase/admin';
 import { NextRequest, NextResponse } from 'next/server';
-import { fetchEmailsForOrg, parseOauthEmailId, fetchThreadForDealEmail, findOAuthThreadBySender } from '@/lib/email/fetch';
+import { fetchEmailsForOrg, parseOauthEmailId, fetchThreadForDealEmail, findOAuthThreadBySender, findOAuthThreadByRecipient } from '@/lib/email/fetch';
 import { htmlToPlainText } from '@/lib/utils';
 
 export type ThreadMessage = {
@@ -49,7 +49,7 @@ export async function GET(
 
   const { data: deal } = await admin
     .from('deals')
-    .select('id, user_id')
+    .select('id, user_id, email')
     .eq('id', dealId)
     .single();
 
@@ -231,6 +231,39 @@ export async function GET(
           receivedAt: seed.receivedAt,
           messages: [{ senderEmail: seed.senderEmail, senderName: seed.senderName || null, bodyText: body, receivedAt: seed.receivedAt, isFromUser: false }],
         });
+      }
+    }
+  }
+
+  // 4. User-initiated: no inbound yet, but we sent first - search OAuth by recipient
+  if (threads.length === 0 && deal?.email) {
+    const recipientEmail = (deal.email as string).trim().toLowerCase();
+    if (recipientEmail) {
+      const oauthMatch = await findOAuthThreadByRecipient(orgId, recipientEmail);
+      if (oauthMatch) {
+        const threadData = await fetchThreadForDealEmail(
+          oauthMatch.connectionId,
+          oauthMatch.messageId,
+          user.id,
+          orgId
+        );
+        if (threadData) {
+          const threadKey = threadData.threadId
+            ? `${oauthMatch.connectionId}:${threadData.threadId}`
+            : `${oauthMatch.connectionId}:${oauthMatch.messageId}`;
+          if (!seenThreadKeys.has(threadKey)) {
+            seenThreadKeys.add(threadKey);
+            threads.push({
+              id: `user-initiated:${oauthMatch.connectionId}:${oauthMatch.messageId}`,
+              subject: threadData.subject,
+              status: 'pending' as const,
+              receivedAt: threadData.messages.length > 0
+                ? threadData.messages[threadData.messages.length - 1].receivedAt
+                : new Date().toISOString(),
+              messages: threadData.messages,
+            });
+          }
+        }
       }
     }
   }

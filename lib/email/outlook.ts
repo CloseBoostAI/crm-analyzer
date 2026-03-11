@@ -136,6 +136,22 @@ export async function searchOutlookMessagesFrom(
   return data.value || [];
 }
 
+/** Search for messages we sent TO a recipient (user-initiated conversations) */
+export async function searchOutlookMessagesTo(
+  accessToken: string,
+  toEmail: string,
+  top = 10
+): Promise<OutlookMessage[]> {
+  const searchTerm = encodeURIComponent(`"to:${toEmail}"`);
+  const url = `https://graph.microsoft.com/v1.0/me/mailFolders/SentItems/messages?$search=${searchTerm}&$top=${top}&$select=id,conversationId,from,toRecipients,subject,receivedDateTime`;
+  const res = await fetch(url, {
+    headers: { Authorization: `Bearer ${accessToken}` },
+  });
+  if (!res.ok) return [];
+  const data = (await res.json()) as OutlookMessageList;
+  return data.value || [];
+}
+
 /** List all messages in a conversation (inbox + sent) for full thread view */
 export async function listOutlookMessagesByConversation(
   accessToken: string,

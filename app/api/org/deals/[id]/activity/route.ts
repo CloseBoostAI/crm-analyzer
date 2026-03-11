@@ -54,18 +54,56 @@ export async function GET(
     .select('id, email')
     .eq('id', dealId)
     .in('user_id', userIds)
+    .limit(1)
     .maybeSingle();
 
   if (dealError || !deal) {
     return NextResponse.json({ error: 'Deal not found' }, { status: 404 });
   }
 
-  const { data: rows } = await admin
+  const contactEmail = (deal.email || '').trim().toLowerCase();
+  const hasContactEmail = contactEmail.length > 0;
+
+  // Match: deal_id linked OR sender = contact (emails from contact) OR to = contact (emails to contact, if stored)
+  const seen = new Set<string>();
+  const rows: { id: string; sender_email: string | null; sender_name: string | null; subject: string | null; body_text: string | null; body_html: string | null; received_at: string; to_email?: string | null }[] = [];
+
+  const addRows = (data: typeof rows) => {
+    for (const r of data || []) {
+      if (!seen.has(r.id)) {
+        seen.add(r.id);
+        rows.push(r);
+      }
+    }
+  };
+
+  const { data: byDealId } = await admin
     .from('inbound_emails')
-    .select('id, sender_email, sender_name, subject, body_text, body_html, received_at')
+    .select('id, sender_email, sender_name, subject, body_text, body_html, received_at, to_email')
     .eq('organization_id', organizationId)
     .eq('deal_id', dealId)
-    .order('received_at', { ascending: true });
+    .order('received_at', { ascending: false });
+  addRows(byDealId || []);
+
+  if (hasContactEmail) {
+    const { data: bySender } = await admin
+      .from('inbound_emails')
+      .select('id, sender_email, sender_name, subject, body_text, body_html, received_at, to_email')
+      .eq('organization_id', organizationId)
+      .ilike('sender_email', contactEmail)
+      .order('received_at', { ascending: false });
+    addRows(bySender || []);
+
+    const { data: byTo } = await admin
+      .from('inbound_emails')
+      .select('id, sender_email, sender_name, subject, body_text, body_html, received_at, to_email')
+      .eq('organization_id', organizationId)
+      .ilike('to_email', contactEmail)
+      .order('received_at', { ascending: false });
+    addRows(byTo || []);
+  }
+
+  rows.sort((a, b) => new Date(b.received_at).getTime() - new Date(a.received_at).getTime());
 
   const { data: conns } = await admin
     .from('email_connections')

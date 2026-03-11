@@ -1,6 +1,6 @@
 'use client';
 
-import { useState, useEffect, useCallback } from 'react';
+import { useState, useEffect } from 'react';
 import {
   Dialog,
   DialogContent,
@@ -32,7 +32,6 @@ import {
   Copy,
   Loader2,
   RefreshCw,
-  MessageSquare,
 } from 'lucide-react';
 import { toast } from 'sonner';
 
@@ -74,7 +73,6 @@ type ActivityItem = {
   senderName: string | null;
   senderEmail: string;
   subject: string;
-  bodyText: string | null;
   isFromUser: boolean;
 };
 
@@ -86,27 +84,22 @@ export function DealDetailsDialog({ deal, open, onOpenChange, onNotesSaved }: Pr
   const [aiOpen, setAiOpen] = useState(true);
   const [notes, setNotes] = useState('');
   const [savingNotes, setSavingNotes] = useState(false);
-  const [activityItems, setActivityItems] = useState<ActivityItem[]>([]);
+  const [activity, setActivity] = useState<ActivityItem[]>([]);
   const [activityLoading, setActivityLoading] = useState(false);
 
   useEffect(() => {
     if (deal) setNotes(deal.notes || '');
   }, [deal?.id, deal?.notes]);
 
-  const fetchActivity = useCallback(() => {
-    if (!deal?.id) return;
-    setActivityLoading(true);
-    fetch(`/api/org/deals/${deal.id}/activity`)
-      .then((res) => res.json())
-      .then((data) => setActivityItems(data.items || []))
-      .catch(() => setActivityItems([]))
-      .finally(() => setActivityLoading(false));
-  }, [deal?.id]);
-
   useEffect(() => {
     if (!deal?.id || !open) return;
-    fetchActivity();
-  }, [deal?.id, open, fetchActivity]);
+    setActivityLoading(true);
+    fetch(`/api/org/deals/${deal.id}/activity`)
+      .then((res) => (res.ok ? res.json() : { items: [] }))
+      .then((data) => setActivity(data.items || []))
+      .catch(() => setActivity([]))
+      .finally(() => setActivityLoading(false));
+  }, [deal?.id, open]);
 
   const saveNotes = async () => {
     if (!deal || notes === (deal.notes || '')) return;
@@ -278,76 +271,49 @@ export function DealDetailsDialog({ deal, open, onOpenChange, onNotesSaved }: Pr
             {/* Center: Activity section */}
             <div className="lg:col-span-5">
               <Card className="h-full min-h-[300px] flex flex-col">
-                <CardHeader className="flex flex-row items-center justify-between space-y-0 pb-2">
-                  <CardTitle className="text-sm font-medium flex items-center gap-2">
-                    <MessageSquare className="h-4 w-4" /> Activity
-                  </CardTitle>
-                  <Button
-                    variant="ghost"
-                    size="icon"
-                    className="h-8 w-8"
-                    onClick={fetchActivity}
-                    disabled={activityLoading}
-                    title="Refresh activity"
-                  >
-                    <RefreshCw className={`h-4 w-4 ${activityLoading ? 'animate-spin' : ''}`} />
-                  </Button>
+                <CardHeader>
+                  <CardTitle className="text-sm font-medium">Activity</CardTitle>
                 </CardHeader>
-                <CardContent className="flex-1 overflow-hidden flex flex-col pt-0">
+                <CardContent className="flex-1 overflow-auto">
                   {activityLoading ? (
-                    <div className="flex-1 flex items-center justify-center">
-                      <Loader2 className="h-6 w-6 animate-spin text-muted-foreground" />
+                    <div className="flex items-center justify-center py-12 text-sm text-muted-foreground">
+                      <Loader2 className="h-5 w-5 animate-spin mr-2" />
+                      Loading activity…
                     </div>
-                  ) : activityItems.length === 0 ? (
-                    <div className="flex-1 flex items-center justify-center text-sm text-muted-foreground">
-                      No email activity yet
+                  ) : activity.length === 0 ? (
+                    <div className="flex items-center justify-center py-12 text-sm text-muted-foreground">
+                      No emails yet. Activity will appear when emails are sent or received with this contact.
                     </div>
                   ) : (
-                    <ScrollArea className="flex-1 pr-4 -mr-4">
-                      <div className="space-y-2">
-                        {activityItems.map((item) => (
+                    <div className="space-y-3">
+                      {activity.map((item) => {
+                        const dt = new Date(item.receivedAt);
+                        const dateStr = dt.toLocaleDateString('en-US', {
+                          month: 'short',
+                          day: 'numeric',
+                          year: 'numeric',
+                          hour: 'numeric',
+                          minute: '2-digit',
+                        });
+                        const sender = item.senderName || item.senderEmail;
+                        return (
                           <div
                             key={item.id}
-                            className={`flex ${item.isFromUser ? 'justify-end' : 'justify-start'}`}
+                            className="flex flex-col gap-0.5 py-2 px-3 rounded-lg border bg-muted/30 hover:bg-muted/50 transition-colors"
                           >
-                            <div
-                              className={`max-w-[90%] rounded-lg px-3 py-2 border ${
-                                item.isFromUser
-                                  ? 'bg-blue-50 dark:bg-blue-950/50 border-blue-200 dark:border-blue-800'
-                                  : 'bg-green-50 dark:bg-green-950/50 border-green-200 dark:border-green-800'
-                              }`}
-                            >
-                              <p className="text-xs text-muted-foreground flex items-center gap-2 flex-wrap">
-                                <span className="font-medium text-foreground">
-                                  {item.isFromUser ? 'You' : (item.senderName || item.senderEmail || 'Contact')}
-                                </span>
-                                <span>
-                                  {new Date(item.receivedAt).toLocaleDateString('en-US', {
-                                    month: 'short',
-                                    day: 'numeric',
-                                    year: 'numeric',
-                                  })}
-                                </span>
-                                <span>
-                                  {new Date(item.receivedAt).toLocaleTimeString('en-US', {
-                                    hour: 'numeric',
-                                    minute: '2-digit',
-                                  })}
-                                </span>
-                              </p>
-                              <p className="text-xs font-medium text-foreground mt-0.5 truncate" title={item.subject}>
-                                {item.subject}
-                              </p>
-                              {item.bodyText && (
-                                <p className="text-sm mt-1 whitespace-pre-wrap break-words line-clamp-3">
-                                  {item.bodyText}
-                                </p>
-                              )}
+                            <div className="flex items-center justify-between gap-2 text-xs text-muted-foreground">
+                              <span className="font-medium text-foreground truncate" title={item.senderEmail}>
+                                {sender}
+                              </span>
+                              <span className="shrink-0">{dateStr}</span>
                             </div>
+                            <p className="text-sm truncate" title={item.subject}>
+                              {item.subject || '(no subject)'}
+                            </p>
                           </div>
-                        ))}
-                      </div>
-                    </ScrollArea>
+                        );
+                      })}
+                    </div>
                   )}
                 </CardContent>
               </Card>

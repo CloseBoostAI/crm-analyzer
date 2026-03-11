@@ -392,28 +392,30 @@ export function DealDetailsDialog({ deal, open, onOpenChange, onNotesSaved }: Pr
                                 {thread.status}
                               </span>
                             </div>
-                            <div className="p-3 space-y-3">
+                            <div className="p-3 space-y-4">
                               {thread.messages.map((msg, i) => (
                                 <div
                                   key={i}
-                                  className={`rounded-lg border p-3 text-sm ${
-                                    msg.isFromUser
-                                      ? 'border-primary/50 bg-primary/5'
-                                      : 'border-border bg-muted/30'
-                                  }`}
+                                  className={`space-y-1 max-w-[85%] ${msg.isFromUser ? 'ml-auto' : 'mr-auto'}`}
                                 >
-                                  <div className="flex items-center justify-between gap-2 mb-2">
-                                    <p className="font-medium text-xs">
-                                      {msg.isFromUser ? 'You' : (msg.senderName || msg.senderEmail)}
-                                    </p>
-                                    <p className="text-xs text-muted-foreground">
+                                  <p className="text-xs font-medium text-muted-foreground">
+                                    {msg.isFromUser ? 'You' : (msg.senderName || msg.senderEmail)}
+                                    <span className="ml-2 font-normal">
                                       {new Date(msg.receivedAt).toLocaleString()}
+                                    </span>
+                                  </p>
+                                  <div
+                                    className={`rounded-lg border p-3 text-sm ${
+                                      msg.isFromUser
+                                        ? 'border-primary/30 bg-primary/5'
+                                        : 'border-border bg-muted/30'
+                                    }`}
+                                  >
+                                    <p className="text-foreground whitespace-pre-wrap break-words">
+                                      {htmlToPlainText(msg.bodyText || '').replace(/\s+/g, ' ').trim().slice(0, 500)}
+                                      {htmlToPlainText(msg.bodyText || '').replace(/\s+/g, ' ').trim().length > 500 ? '...' : ''}
                                     </p>
                                   </div>
-                                  <p className="text-xs text-muted-foreground whitespace-pre-wrap break-words">
-                                    {htmlToPlainText(msg.bodyText || '').replace(/\s+/g, ' ').trim().slice(0, 500)}
-                                    {htmlToPlainText(msg.bodyText || '').replace(/\s+/g, ' ').trim().length > 500 ? '...' : ''}
-                                  </p>
                                 </div>
                               ))}
                             </div>

@@ -2153,10 +2153,11 @@ OUTPUT: The complete email only — greeting, body (label → Miner line → no-
                 Inbox: respond to client emails. Follow-ups: generate personalized emails for your deals.
               </CardDescription>
             </CardHeader>
-            <CardContent className="space-y-8">
-              {/* Client Inbox */}
-              <div>
-                <h3 className="text-sm font-semibold mb-3">Client Inbox</h3>
+            <CardContent>
+              <div className="grid grid-cols-1 lg:grid-cols-2 gap-6">
+                {/* Left: Client Inbox */}
+                <div className="min-w-0">
+                  <h3 className="text-sm font-semibold mb-3">Client Inbox</h3>
                 <div className="flex items-center gap-2 mb-4">
                   <Select value={inboundEmailFilter} onValueChange={(v) => setInboundEmailFilter(v as typeof inboundEmailFilter)}>
                     <SelectTrigger className="w-[180px]">
@@ -2298,45 +2299,62 @@ OUTPUT: The complete email only — greeting, body (label → Miner line → no-
                     ))}
                   </div>
                 )}
-              </div>
-
-              {/* Follow-up emails */}
-              <div>
-                <h3 className="text-sm font-semibold mb-3">Generate follow-up emails</h3>
-                <div className="mb-4">
-                  <label className="text-sm font-medium">Tone</label>
-                  <div className="flex items-center gap-4 mt-2">
-                    <Slider
-                      value={[emailTone]}
-                      onValueChange={(value) => setEmailTone(value[0])}
-                      max={100}
-                      step={33}
-                      className="w-full max-w-md"
-                    />
-                    <span className="text-sm text-muted-foreground shrink-0">
-                      {getToneDescription(emailTone)}
-                    </span>
-                  </div>
                 </div>
 
-                <div className="grid grid-cols-1 xl:grid-cols-[2fr_1fr] gap-6 min-w-0">
-                {/* Left panel: max 2/3, scrollbar at top when content overflows */}
-                <div className="min-w-0 flex flex-col">
-                  {emailGenClientWidth > 0 && emailGenScrollWidth > emailGenClientWidth && (
-                    <div
-                      ref={emailGenTopScrollRef}
-                      onScroll={syncEmailTopScroll}
-                      className="overflow-x-auto overflow-y-hidden mb-0 scrollbar-light shrink-0"
-                    >
-                      <div style={{ width: Math.max(1, emailGenScrollWidth), height: 1 }} />
+                {/* Right: Generated email (top) + Follow-up emails (bottom) */}
+                <div className="flex flex-col gap-6 min-w-0">
+                  {/* Top right: Generated email panel */}
+                  <div className="border rounded-lg p-4 min-h-[200px] flex flex-col">
+                    {generatedEmail ? (
+                      <div className="space-y-4 flex-1">
+                        <div className="rounded-md border p-4 bg-muted/50 min-h-[160px]">
+                          <pre className="whitespace-pre-wrap font-sans text-sm">
+                            {generatedEmail}
+                          </pre>
+                        </div>
+                        <div className="flex justify-end gap-2 flex-wrap">
+                          <Button variant="outline" size="sm" onClick={() => setGeneratedEmail('')}>Clear</Button>
+                          <Button size="sm" onClick={() => generateEmail(selectedCustomer)} disabled={generating}>Regenerate</Button>
+                          <Button size="sm" onClick={() => { navigator.clipboard.writeText(generatedEmail); toast.success('Email copied to clipboard!'); }} disabled={!generatedEmail} className="bg-green-600 hover:bg-green-700 text-white">Copy</Button>
+                          <Button size="sm" onClick={async () => {
+                            if (!selectedCustomer?.email?.trim()) { toast.error('No email address for this contact.'); return; }
+                            setSendingEmail(true);
+                            try {
+                              const res = await fetch('/api/org/send-email', { method: 'POST', headers: { 'Content-Type': 'application/json' }, body: JSON.stringify({ to: selectedCustomer.email.trim(), toName: selectedCustomer.name || undefined, subject: 'Following up', body: generatedEmail }) });
+                              const data = await res.json();
+                              if (!res.ok) throw new Error(data.error || 'Failed to send');
+                              toast.success('Email sent successfully!');
+                            } catch (err: any) { toast.error(err?.message || 'Failed to send email'); } finally { setSendingEmail(false); }
+                          }} disabled={!generatedEmail || sendingEmail} className="bg-primary hover:bg-primary/90">
+                            {sendingEmail ? <><div className="mr-2 h-4 w-4 animate-spin rounded-full border-2 border-white border-t-transparent" /> Sending...</> : <><Send className="h-4 w-4 mr-2" /> Send</>}
+                          </Button>
+                        </div>
+                      </div>
+                    ) : (
+                      <div className="flex items-center justify-center flex-1 text-muted-foreground text-sm">
+                        Select a deal to generate an email
+                      </div>
+                    )}
+                  </div>
+
+                  {/* Bottom right: Generate follow-up emails */}
+                  <div>
+                    <h3 className="text-sm font-semibold mb-3">Generate follow-up emails</h3>
+                    <div className="mb-3">
+                      <label className="text-sm font-medium">Tone</label>
+                      <div className="flex items-center gap-4 mt-2">
+                        <Slider value={[emailTone]} onValueChange={(value) => setEmailTone(value[0])} max={100} step={33} className="w-full max-w-[200px]" />
+                        <span className="text-sm text-muted-foreground shrink-0">{getToneDescription(emailTone)}</span>
+                      </div>
                     </div>
-                  )}
-                  <div
-                    ref={emailGenScrollRef}
-                    onScroll={syncEmailScroll}
-                    className="overflow-x-auto scrollbar-hidden min-w-0 flex-1"
-                  >
-                    <div className="border rounded-lg p-4 inline-block min-w-max">
+                    <div className="min-w-0 flex flex-col">
+                    {emailGenClientWidth > 0 && emailGenScrollWidth > emailGenClientWidth && (
+                      <div ref={emailGenTopScrollRef} onScroll={syncEmailTopScroll} className="overflow-x-auto overflow-y-hidden mb-0 scrollbar-light shrink-0">
+                        <div style={{ width: Math.max(1, emailGenScrollWidth), height: 1 }} />
+                      </div>
+                    )}
+                    <div ref={emailGenScrollRef} onScroll={syncEmailScroll} className="overflow-x-auto scrollbar-hidden min-w-0">
+                      <div className="border rounded-lg p-4 inline-block min-w-max">
                       <Table className="whitespace-nowrap">
                     <TableHeader>
                       <TableRow>
@@ -2428,93 +2446,12 @@ OUTPUT: The complete email only — greeting, body (label → Miner line → no-
                       ))}
                     </TableBody>
                   </Table>
+                      </div>
                     </div>
                   </div>
                 </div>
-
-                <div className="border rounded-lg p-4 min-w-0">
-                  {generatedEmail ? (
-                    <div className="space-y-4">
-                      <div className="rounded-md border p-4 bg-gray-50 dark:bg-gray-900 min-h-[300px]">
-                        <pre className="whitespace-pre-wrap font-sans text-sm">
-                          {generatedEmail}
-                        </pre>
-                      </div>
-                      <div className="flex justify-end gap-4">
-                        <Button
-                          variant="outline"
-                          onClick={() => setGeneratedEmail('')}
-                        >
-                          Clear
-                        </Button>
-                        <Button
-                          onClick={() => generateEmail(selectedCustomer)}
-                          disabled={generating}
-                        >
-                          Regenerate
-                        </Button>
-                        <Button
-                          onClick={() => {
-                            navigator.clipboard.writeText(generatedEmail);
-                            toast.success('Email copied to clipboard!');
-                          }}
-                          disabled={!generatedEmail}
-                          className="bg-green-600 hover:bg-green-700 text-white"
-                        >
-                          Copy
-                        </Button>
-                        <Button
-                          onClick={async () => {
-                            if (!selectedCustomer?.email?.trim()) {
-                              toast.error('No email address for this contact. Add an email to the deal to send.');
-                              return;
-                            }
-                            setSendingEmail(true);
-                            try {
-                              const res = await fetch('/api/org/send-email', {
-                                method: 'POST',
-                                headers: { 'Content-Type': 'application/json' },
-                                body: JSON.stringify({
-                                  to: selectedCustomer.email.trim(),
-                                  toName: selectedCustomer.name || undefined,
-                                  subject: 'Following up',
-                                  body: generatedEmail,
-                                }),
-                              });
-                              const data = await res.json();
-                              if (!res.ok) throw new Error(data.error || 'Failed to send');
-                              toast.success('Email sent successfully!');
-                            } catch (err: any) {
-                              toast.error(err?.message || 'Failed to send email');
-                            } finally {
-                              setSendingEmail(false);
-                            }
-                          }}
-                          disabled={!generatedEmail || sendingEmail}
-                          className="bg-primary hover:bg-primary/90"
-                        >
-                          {sendingEmail ? (
-                            <>
-                              <div className="mr-2 h-4 w-4 animate-spin rounded-full border-2 border-white border-t-transparent" />
-                              Sending...
-                            </>
-                          ) : (
-                            <>
-                              <Send className="h-4 w-4 mr-2" />
-                              Send
-                            </>
-                          )}
-                        </Button>
-                      </div>
-                    </div>
-                  ) : (
-                    <div className="flex items-center justify-center h-[300px] text-muted-foreground">
-                      Select a deal to generate an email
-                    </div>
-                  )}
-                </div>
               </div>
-              </div>
+            </div>
             </CardContent>
           </Card>
         </TabsContent>

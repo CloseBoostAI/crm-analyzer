@@ -84,6 +84,7 @@ type SmartTask = {
   dueDate: number;
   dealId: string;
   dealName: string;
+  dealCompany: string;
   dealAmount: number;
   dealStage: string;
   dealContact: string;
@@ -209,8 +210,8 @@ function buildSmartTasks(deals: Deal[], inboundEmails: InboundEmailForTasks[] = 
       : 999;
     const isHighValue = deal.amount >= 20000;
     const base = {
-      dealId: deal.id, dealName: getDealDisplayName(deal), dealAmount: deal.amount,
-      dealStage: deal.stage, dealContact: deal.contact, dealEmail: deal.email,
+      dealId: deal.id, dealName: getDealDisplayName(deal), dealCompany: deal.company || '',
+      dealAmount: deal.amount, dealStage: deal.stage, dealContact: deal.contact, dealEmail: deal.email,
     };
 
     const staleThreshold = isHighValue ? 5 : 14;
@@ -1713,27 +1714,18 @@ OUTPUT: The complete email only — greeting, body (label → Miner line → no-
                   </CardHeader>
                   {activeTasks.length > 0 && (
                     <CardContent className="pt-0">
-                      <div className="space-y-2">
-                        {activeTasksByCompany.map(([company, tasks]) =>
-                          tasks.length === 1 ? (
-                            <div key={company} className="pl-1">
-                              {renderTaskRow(tasks[0])}
-                            </div>
-                          ) : (
-                            <Collapsible key={company} defaultOpen={false}>
-                              <CollapsibleTrigger asChild>
-                                <button className="group flex items-center justify-between w-full py-2 px-3 rounded-lg hover:bg-muted/50 transition-colors text-left">
-                                  <span className="font-medium text-sm">{company}</span>
-                                  <span className="text-xs text-muted-foreground">{tasks.length} tasks</span>
-                                  <ChevronDown className="h-4 w-4 text-muted-foreground shrink-0 ml-2 transition-transform group-data-[state=open]:rotate-180" />
-                                </button>
-                              </CollapsibleTrigger>
-                              <CollapsibleContent>
-                                <div className="pl-3 pr-2 pb-2 space-y-1">{tasks.map(t => renderTaskRow(t))}</div>
-                              </CollapsibleContent>
-                            </Collapsible>
-                          )
-                        )}
+                      <div className="space-y-3">
+                        {activeTasksByCompany.map(([groupLabel, tasks]) => (
+                          <div key={groupLabel} className="space-y-1.5">
+                            <p className="text-xs font-medium text-muted-foreground uppercase tracking-wider px-1">
+                              {groupLabel}
+                              {tasks.length > 1 && (
+                                <span className="font-normal normal-case ml-1">({tasks.length})</span>
+                              )}
+                            </p>
+                            <div className="space-y-1">{tasks.map(t => renderTaskRow(t))}</div>
+                          </div>
+                        ))}
                       </div>
                     </CardContent>
                   )}
@@ -1754,27 +1746,18 @@ OUTPUT: The complete email only — greeting, body (label → Miner line → no-
                   <CollapsibleContent>
                     <Card className="mt-2">
                       <CardContent className="pt-4">
-                        <div className="space-y-2">
-                          {completedTasksByCompany.map(([company, tasks]) =>
-                            tasks.length === 1 ? (
-                              <div key={company} className="pl-1 opacity-75">
-                                {renderTaskRow(tasks[0])}
-                              </div>
-                            ) : (
-                              <Collapsible key={company} defaultOpen={false}>
-                                <CollapsibleTrigger asChild>
-                                  <button className="group flex items-center justify-between w-full py-2 px-3 rounded-lg hover:bg-muted/50 transition-colors text-left">
-                                    <span className="font-medium text-sm">{company}</span>
-                                    <span className="text-xs text-muted-foreground">{tasks.length} tasks</span>
-                                    <ChevronDown className="h-4 w-4 text-muted-foreground shrink-0 ml-2 transition-transform group-data-[state=open]:rotate-180" />
-                                  </button>
-                                </CollapsibleTrigger>
-                                <CollapsibleContent>
-                                  <div className="pl-3 pr-2 pb-2 space-y-1 opacity-75">{tasks.map(t => renderTaskRow(t))}</div>
-                                </CollapsibleContent>
-                              </Collapsible>
-                            )
-                          )}
+                        <div className="space-y-3">
+                          {completedTasksByCompany.map(([groupLabel, tasks]) => (
+                            <div key={groupLabel} className="space-y-1.5 opacity-75">
+                              <p className="text-xs font-medium text-muted-foreground uppercase tracking-wider px-1">
+                                {groupLabel}
+                                {tasks.length > 1 && (
+                                  <span className="font-normal normal-case ml-1">({tasks.length})</span>
+                                )}
+                              </p>
+                              <div className="space-y-1">{tasks.map(t => renderTaskRow(t))}</div>
+                            </div>
+                          ))}
                         </div>
                       </CardContent>
                     </Card>
@@ -1858,9 +1841,11 @@ OUTPUT: The complete email only — greeting, body (label → Miner line → no-
                         <div className="space-y-2">
                       {(() => {
                         const tasksToShow = showAllSmartTasks ? visibleSmartTasks : visibleSmartTasks.slice(0, 20);
+                        const getRecGroupLabel = (t: SmartTask) =>
+                          (t.dealName || t.dealCompany || t.dealContact || 'Other').trim() || 'Other';
                         const recsByCompany = Object.entries(
                           tasksToShow.reduce<Record<string, SmartTask[]>>((acc, t) => {
-                            const key = t.dealName || t.dealContact || 'Other';
+                            const key = getRecGroupLabel(t);
                             if (!acc[key]) acc[key] = [];
                             acc[key].push(t);
                             return acc;
@@ -1933,26 +1918,19 @@ OUTPUT: The complete email only — greeting, body (label → Miner line → no-
 
                         return (
                           <>
-                            {recsByCompany.map(([company, companyTasks]) =>
-                              companyTasks.length === 1 ? (
-                                <div key={company}>{renderRecTask(companyTasks[0])}</div>
-                              ) : (
-                                <Collapsible key={company} defaultOpen={recsByCompany.length <= 5}>
-                                  <CollapsibleTrigger asChild>
-                                    <button className="group flex items-center justify-between w-full py-2.5 px-3 rounded-lg border hover:bg-muted/50 transition-colors text-left">
-                                      <span className="font-medium text-sm">{company}</span>
-                                      <span className="text-xs text-muted-foreground">{companyTasks.length} recommendations</span>
-                                      <ChevronDown className="h-4 w-4 text-muted-foreground shrink-0 ml-2 transition-transform group-data-[state=open]:rotate-180" />
-                                    </button>
-                                  </CollapsibleTrigger>
-                                  <CollapsibleContent>
-                                    <div className="pl-3 pr-2 pb-2 pt-1 space-y-2">
-                                      {companyTasks.map(task => renderRecTask(task))}
-                                    </div>
-                                  </CollapsibleContent>
-                                </Collapsible>
-                              )
-                            )}
+                            {recsByCompany.map(([groupLabel, companyTasks]) => (
+                              <div key={groupLabel} className="space-y-1.5">
+                                <p className="text-xs font-medium text-muted-foreground uppercase tracking-wider px-1 pt-1">
+                                  {groupLabel}
+                                  {companyTasks.length > 1 && (
+                                    <span className="font-normal normal-case ml-1">({companyTasks.length})</span>
+                                  )}
+                                </p>
+                                <div className="space-y-2">
+                                  {companyTasks.map(task => renderRecTask(task))}
+                                </div>
+                              </div>
+                            ))}
                             {!showAllSmartTasks && visibleSmartTasks.length > 20 && (
                               <Button
                                 variant="ghost"

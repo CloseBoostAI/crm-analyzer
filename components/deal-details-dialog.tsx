@@ -16,7 +16,7 @@ import {
   CollapsibleContent,
   CollapsibleTrigger,
 } from '@/components/ui/collapsible';
-import { getDealDisplayName, getDealStageColor, htmlToPlainText, extractReplyBody } from '@/lib/utils';
+import { getDealDisplayName, getDealStageColor } from '@/lib/utils';
 import {
   FileText,
   Mail,
@@ -30,27 +30,9 @@ import {
   Building2,
   Sparkles,
   Copy,
-  RefreshCw,
   Loader2,
-  Inbox,
 } from 'lucide-react';
 import { toast } from 'sonner';
-
-type ThreadMessage = {
-  senderEmail: string;
-  senderName: string | null;
-  bodyText: string;
-  receivedAt: string;
-  isFromUser: boolean;
-};
-
-type DealEmailThread = {
-  id: string;
-  subject: string;
-  status: 'pending' | 'acknowledged' | 'replied';
-  receivedAt: string;
-  messages: ThreadMessage[];
-};
 
 export type DealForDialog = {
   id: string;
@@ -92,37 +74,9 @@ export function DealDetailsDialog({ deal, open, onOpenChange, onNotesSaved }: Pr
   const [aiOpen, setAiOpen] = useState(true);
   const [notes, setNotes] = useState('');
   const [savingNotes, setSavingNotes] = useState(false);
-  const [activeTab, setActiveTab] = useState<'overview' | 'activities'>('overview');
-  const [dealThreads, setDealThreads] = useState<DealEmailThread[]>([]);
-  const [emailsLoading, setEmailsLoading] = useState(false);
-
   useEffect(() => {
     if (deal) setNotes(deal.notes || '');
   }, [deal?.id, deal?.notes]);
-
-  const fetchDealEmails = useCallback(async () => {
-    if (!deal) return;
-    setEmailsLoading(true);
-    try {
-      const res = await fetch(`/api/org/deals/${deal.id}/emails`);
-      if (res.ok) {
-        const data = await res.json();
-        setDealThreads(data.threads || []);
-      } else {
-        setDealThreads([]);
-      }
-    } catch {
-      setDealThreads([]);
-    } finally {
-      setEmailsLoading(false);
-    }
-  }, [deal?.id]);
-
-  useEffect(() => {
-    if (deal && activeTab === 'activities') {
-      fetchDealEmails();
-    }
-  }, [deal?.id, activeTab, fetchDealEmails]);
 
   const saveNotes = async () => {
     if (!deal || notes === (deal.notes || '')) return;
@@ -287,135 +241,37 @@ export function DealDetailsDialog({ deal, open, onOpenChange, onNotesSaved }: Pr
 
             {/* Center content */}
             <div className="lg:col-span-5 space-y-4">
-              <div className="flex gap-2 border-b">
-                <Button
-                  variant="ghost"
-                  className={`rounded-b-none ${activeTab === 'overview' ? 'border-b-2 border-primary' : 'text-muted-foreground'}`}
-                  onClick={() => setActiveTab('overview')}
-                >
-                  Overview
-                </Button>
-                <Button
-                  variant="ghost"
-                  className={`rounded-b-none ${activeTab === 'activities' ? 'border-b-2 border-primary' : 'text-muted-foreground'}`}
-                  onClick={() => setActiveTab('activities')}
-                >
-                  Activities
-                </Button>
-              </div>
+              <Card>
+                <CardHeader>
+                  <CardTitle className="text-sm font-medium">Data highlights</CardTitle>
+                </CardHeader>
+                <CardContent className="space-y-2 text-sm">
+                  <p><strong>CREATE DATE:</strong> {createDate}</p>
+                  <p><strong>LAST ACTIVITY DATE:</strong> {lastActivityDate}</p>
+                  <p><strong>DEAL STAGE:</strong> {deal.stage} (Deals pipeline)</p>
+                </CardContent>
+              </Card>
 
-              {activeTab === 'overview' ? (
-                <>
-                  <Card>
-                    <CardHeader>
-                      <CardTitle className="text-sm font-medium">Data highlights</CardTitle>
-                    </CardHeader>
-                    <CardContent className="space-y-2 text-sm">
-                      <p><strong>CREATE DATE:</strong> {createDate}</p>
-                      <p><strong>LAST ACTIVITY DATE:</strong> {lastActivityDate}</p>
-                      <p><strong>DEAL STAGE:</strong> {deal.stage} (Deals pipeline)</p>
-                    </CardContent>
-                  </Card>
-
-                  <Card>
-                    <CardHeader>
-                      <CardTitle className="text-sm font-medium">Notes</CardTitle>
-                    </CardHeader>
-                    <CardContent>
-                      <Textarea
-                        value={notes}
-                        onChange={(e) => setNotes(e.target.value)}
-                        onBlur={saveNotes}
-                        placeholder="Add notes about this deal..."
-                        className="min-h-[200px] resize-y font-mono text-sm"
-                        disabled={savingNotes}
-                      />
-                      {savingNotes && (
-                        <p className="text-xs text-muted-foreground mt-2 flex items-center gap-1">
-                          <Loader2 className="h-3 w-3 animate-spin" /> Saving...
-                        </p>
-                      )}
-                    </CardContent>
-                  </Card>
-                </>
-              ) : (
-                <Card>
-                  <CardHeader className="flex flex-row items-center justify-between">
-                    <CardTitle className="text-sm font-medium">Email activity</CardTitle>
-                    <Button
-                      variant="ghost"
-                      size="sm"
-                      onClick={fetchDealEmails}
-                      disabled={emailsLoading}
-                    >
-                      {emailsLoading ? (
-                        <Loader2 className="h-4 w-4 animate-spin" />
-                      ) : (
-                        <RefreshCw className="h-4 w-4" />
-                      )}
-                    </Button>
-                  </CardHeader>
-                  <CardContent>
-                    {emailsLoading && dealThreads.length === 0 ? (
-                      <div className="flex items-center justify-center py-8 text-muted-foreground">
-                        <Loader2 className="h-6 w-6 animate-spin mr-2" />
-                        Loading emails...
-                      </div>
-                    ) : dealThreads.length === 0 ? (
-                      <div className="text-center py-8 text-muted-foreground">
-                        <Inbox className="h-10 w-10 mx-auto mb-2 opacity-50" />
-                        <p className="text-sm font-medium">No email exchanges yet</p>
-                        <p className="text-xs mt-1">
-                          Emails from {deal.email || 'this contact'} will appear here when received.
-                        </p>
-                      </div>
-                    ) : (
-                      <div className="rounded-md border overflow-hidden">
-                        <div className="px-3 py-2 bg-muted/50 border-b shrink-0">
-                          <p className="text-sm font-medium truncate">
-                            {dealThreads[0]?.subject || '(no subject)'}
-                          </p>
-                        </div>
-                        <div className="max-h-[500px] overflow-y-auto overflow-x-hidden p-4 space-y-4">
-                          {dealThreads.flatMap((thread) =>
-                            thread.messages.map((msg, i) => {
-                              const plain = htmlToPlainText(msg.bodyText || '');
-                              const bodyOnly = extractReplyBody(plain) || plain;
-                              const display = bodyOnly.replace(/\s+/g, ' ').trim();
-                              const truncated = display.length > 500 ? display.slice(0, 500) + '...' : display;
-                              return (
-                                <div
-                                  key={`${thread.id}-${msg.receivedAt}-${i}`}
-                                  className={`flex flex-col ${msg.isFromUser ? 'items-end' : 'items-start'}`}
-                                >
-                                  <p className="text-xs font-medium text-muted-foreground mb-1 px-1">
-                                    {msg.isFromUser ? 'Me' : (msg.senderName || msg.senderEmail)}
-                                    <span className="ml-2 font-normal">
-                                      {new Date(msg.receivedAt).toLocaleTimeString(undefined, {
-                                        hour: 'numeric',
-                                        minute: '2-digit',
-                                      })}
-                                    </span>
-                                  </p>
-                                  <div
-                                    className={`max-w-[85%] rounded-2xl px-4 py-3 text-sm ${
-                                      msg.isFromUser
-                                        ? 'bg-primary text-primary-foreground rounded-br-sm'
-                                        : 'bg-muted rounded-bl-sm'
-                                    }`}
-                                  >
-                                    <p className="whitespace-pre-wrap break-words">{truncated}</p>
-                                  </div>
-                                </div>
-                              );
-                            })
-                          )}
-                        </div>
-                      </div>
-                    )}
-                  </CardContent>
-                </Card>
-              )}
+              <Card>
+                <CardHeader>
+                  <CardTitle className="text-sm font-medium">Notes</CardTitle>
+                </CardHeader>
+                <CardContent>
+                  <Textarea
+                    value={notes}
+                    onChange={(e) => setNotes(e.target.value)}
+                    onBlur={saveNotes}
+                    placeholder="Add notes about this deal..."
+                    className="min-h-[200px] resize-y font-mono text-sm"
+                    disabled={savingNotes}
+                  />
+                  {savingNotes && (
+                    <p className="text-xs text-muted-foreground mt-2 flex items-center gap-1">
+                      <Loader2 className="h-3 w-3 animate-spin" /> Saving...
+                    </p>
+                  )}
+                </CardContent>
+              </Card>
             </div>
 
             {/* Right sidebar */}

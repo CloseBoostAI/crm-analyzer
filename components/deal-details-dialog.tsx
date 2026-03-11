@@ -370,14 +370,14 @@ export function DealDetailsDialog({ deal, open, onOpenChange, onNotesSaved }: Pr
                         </p>
                       </div>
                     ) : (
-                      <ScrollArea className="h-[500px] w-full rounded-md border">
+                      <div className="max-h-[500px] overflow-y-auto overflow-x-hidden rounded-md border">
                         <div className="p-4 space-y-4">
                           {dealThreads.map((thread) => (
                             <div
                               key={thread.id}
                               className="border rounded-lg overflow-hidden"
                             >
-                              <div className="flex items-center justify-between gap-2 px-3 py-2 bg-muted/50 border-b">
+                              <div className="flex items-center justify-between gap-2 px-3 py-2 bg-muted/50 border-b shrink-0">
                                 <p className="text-sm font-medium truncate">
                                   {thread.subject || '(no subject)'}
                                 </p>
@@ -401,8 +401,8 @@ export function DealDetailsDialog({ deal, open, onOpenChange, onNotesSaved }: Pr
                                   const truncated = display.length > 500 ? display.slice(0, 500) + '...' : display;
                                   return (
                                     <div
-                                      key={i}
-                                      className={`flex flex-col ${msg.isFromUser ? 'items-end' : 'items-start'}`}
+                                      key={`${msg.receivedAt}-${i}`}
+                                      className={`flex flex-col shrink-0 ${msg.isFromUser ? 'items-end' : 'items-start'}`}
                                     >
                                       <p className="text-xs font-medium text-muted-foreground mb-1 px-1">
                                         {msg.isFromUser ? 'You' : (msg.senderName || msg.senderEmail)}
@@ -428,7 +428,7 @@ export function DealDetailsDialog({ deal, open, onOpenChange, onNotesSaved }: Pr
                             </div>
                           ))}
                         </div>
-                      </ScrollArea>
+                      </div>
                     )}
                   </CardContent>
                 </Card>

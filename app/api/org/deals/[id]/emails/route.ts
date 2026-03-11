@@ -270,8 +270,40 @@ export async function GET(
 
   threads.sort((a, b) => new Date(b.receivedAt).getTime() - new Date(a.receivedAt).getTime());
 
+  // Merge threads into one conversation: stack all messages chronologically (for same deal/contact)
+  const mergedThreads: DealEmailThread[] = [];
+  const seenMessageKeys = new Set<string>();
+  const allMessages: Array<ThreadMessage & { subject: string; status: string; threadId: string }> = [];
+  for (const t of threads) {
+    for (const m of t.messages) {
+      const key = `${m.senderEmail}:${m.receivedAt}:${(m.bodyText || '').slice(0, 50)}`;
+      if (seenMessageKeys.has(key)) continue;
+      seenMessageKeys.add(key);
+      allMessages.push({
+        ...m,
+        subject: t.subject,
+        status: t.status,
+        threadId: t.id,
+      });
+    }
+  }
+  allMessages.sort((a, b) => new Date(a.receivedAt).getTime() - new Date(b.receivedAt).getTime());
+
+  if (allMessages.length > 0) {
+    const latest = allMessages[allMessages.length - 1];
+    mergedThreads.push({
+      id: threads[0]?.id ?? 'merged',
+      subject: threads[0]?.subject ?? latest.subject,
+      status: (latest.status as 'pending' | 'acknowledged' | 'replied') ?? threads[0]?.status ?? 'pending',
+      receivedAt: latest.receivedAt,
+      messages: allMessages.map(({ subject, status, threadId, ...m }) => m),
+    });
+  } else {
+    mergedThreads.push(...threads);
+  }
+
   return NextResponse.json(
-    { threads },
+    { threads: mergedThreads.length > 0 ? mergedThreads : threads },
     { headers: { 'Cache-Control': 'no-store, max-age=0' } }
   );
 }

@@ -2,6 +2,10 @@ import { createClient } from '@/lib/supabase/server';
 import { createAdminClient } from '@/lib/supabase/admin';
 import { NextRequest, NextResponse } from 'next/server';
 import { extractReplyBody, htmlToPlainText } from '@/lib/utils';
+import {
+  findAllOAuthThreadsWithContact,
+  fetchThreadForDealEmail,
+} from '@/lib/email/fetch';
 
 export type ActivityItem = {
   id: string;
@@ -105,6 +109,41 @@ export async function GET(
 
   rows.sort((a, b) => new Date(b.received_at).getTime() - new Date(a.received_at).getTime());
 
+  // Also fetch OAuth emails (Gmail/Outlook) for this contact – live from provider, not just DB
+  const oauthItems: ActivityItem[] = [];
+  if (hasContactEmail) {
+    try {
+      const threads = await findAllOAuthThreadsWithContact(organizationId, contactEmail);
+      const seenOauth = new Set<string>();
+      for (const { connectionId, messageId } of threads) {
+        const thread = await fetchThreadForDealEmail(
+          connectionId,
+          messageId,
+          user.id,
+          organizationId
+        );
+        if (!thread) continue;
+        for (const msg of thread.messages) {
+          const key = `${msg.receivedAt}:${(msg.senderEmail || '').toLowerCase()}`;
+          if (seenOauth.has(key)) continue;
+          seenOauth.add(key);
+          oauthItems.push({
+            id: `oauth:${connectionId}:${messageId}:${msg.receivedAt}`,
+            receivedAt: msg.receivedAt,
+            senderName: msg.senderName,
+            senderEmail: msg.senderEmail || '',
+            subject: thread.subject || '(no subject)',
+            bodyText: msg.bodyText || null,
+            isFromUser: msg.isFromUser,
+          });
+        }
+      }
+      oauthItems.sort((a, b) => new Date(b.receivedAt).getTime() - new Date(a.receivedAt).getTime());
+    } catch {
+      // OAuth fetch failed – continue with DB items only
+    }
+  }
+
   const { data: conns } = await admin
     .from('email_connections')
     .select('email')
@@ -113,7 +152,7 @@ export async function GET(
     (conns || []).map((c: { email?: string }) => (c.email || '').toLowerCase()).filter(Boolean)
   );
 
-  const items: ActivityItem[] = (rows || []).map((row) => {
+  const dbItems: ActivityItem[] = (rows || []).map((row) => {
     const rawBody = row.body_text || htmlToPlainText(row.body_html || '') || '';
     const stripped = extractReplyBody(rawBody);
     const bodyText = stripped.trim() || rawBody.trim().slice(0, 500) || null;
@@ -130,6 +169,18 @@ export async function GET(
       isFromUser,
     };
   });
+
+  // Merge DB + OAuth, dedupe by receivedAt + sender
+  const dedupeKey = (i: ActivityItem) => `${i.receivedAt}:${(i.senderEmail || '').toLowerCase()}`;
+  const seenKeys = new Set<string>();
+  const items: ActivityItem[] = [];
+  for (const i of [...oauthItems, ...dbItems]) {
+    const k = dedupeKey(i);
+    if (seenKeys.has(k)) continue;
+    seenKeys.add(k);
+    items.push(i);
+  }
+  items.sort((a, b) => new Date(b.receivedAt).getTime() - new Date(a.receivedAt).getTime());
 
   return NextResponse.json(
     { items },

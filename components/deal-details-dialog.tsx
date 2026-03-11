@@ -87,18 +87,23 @@ export function DealDetailsDialog({ deal, open, onOpenChange, onNotesSaved }: Pr
   const [activity, setActivity] = useState<ActivityItem[]>([]);
   const [activityLoading, setActivityLoading] = useState(false);
 
-  useEffect(() => {
-    if (deal) setNotes(deal.notes || '');
-  }, [deal?.id, deal?.notes]);
-
-  useEffect(() => {
-    if (!deal?.id || !open) return;
+  const fetchActivity = () => {
+    if (!deal?.id) return;
     setActivityLoading(true);
     fetch(`/api/org/deals/${deal.id}/activity`)
       .then((res) => (res.ok ? res.json() : { items: [] }))
       .then((data) => setActivity(data.items || []))
       .catch(() => setActivity([]))
       .finally(() => setActivityLoading(false));
+  };
+
+  useEffect(() => {
+    if (deal) setNotes(deal.notes || '');
+  }, [deal?.id, deal?.notes]);
+
+  useEffect(() => {
+    if (!deal?.id || !open) return;
+    fetchActivity();
   }, [deal?.id, open]);
 
   const saveNotes = async () => {
@@ -271,8 +276,18 @@ export function DealDetailsDialog({ deal, open, onOpenChange, onNotesSaved }: Pr
             {/* Center: Activity section */}
             <div className="lg:col-span-5">
               <Card className="h-full min-h-[300px] flex flex-col">
-                <CardHeader>
+                <CardHeader className="flex flex-row items-center justify-between space-y-0 pb-2">
                   <CardTitle className="text-sm font-medium">Activity</CardTitle>
+                  <Button
+                    variant="ghost"
+                    size="icon"
+                    className="h-8 w-8 shrink-0"
+                    onClick={fetchActivity}
+                    disabled={activityLoading}
+                    title="Refresh activity"
+                  >
+                    <RefreshCw className={`h-4 w-4 ${activityLoading ? 'animate-spin' : ''}`} />
+                  </Button>
                 </CardHeader>
                 <CardContent className="flex-1 overflow-auto">
                   {activityLoading ? (

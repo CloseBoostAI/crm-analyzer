@@ -765,7 +765,7 @@ export default function AnalyticsPage() {
   }, [inboundEmailFilter]);
 
   const refreshInbound = useCallback(async () => {
-    if (activeTab !== 'inbox') return;
+    if (activeTab !== 'emails') return;
     setInboundEmailSyncing(true);
     try {
       await fetchInboundOnly();
@@ -777,7 +777,7 @@ export default function AnalyticsPage() {
   }, [activeTab, fetchInboundOnly]);
 
   useEffect(() => {
-    if (activeTab !== 'inbox') return;
+    if (activeTab !== 'emails') return;
     setInboundEmailsLoading(true);
     fetchInboundOnly()
       .catch(() => toast.error('Failed to load emails'))
@@ -1193,16 +1193,10 @@ OUTPUT: The complete email only — greeting, body (label → Miner line → no-
             Tasks
           </TabsTrigger>
           <TabsTrigger 
-            value="inbox" 
-            className="font-heading text-sm font-medium px-4 py-2.5 data-[state=active]:bg-primary data-[state=active]:text-primary-foreground data-[state=active]:shadow-md rounded-md transition-all"
-          >
-            Client Inbox
-          </TabsTrigger>
-          <TabsTrigger 
             value="emails" 
             className="font-heading text-sm font-medium px-4 py-2.5 data-[state=active]:bg-primary data-[state=active]:text-primary-foreground data-[state=active]:shadow-md rounded-md transition-all"
           >
-            Email Generator
+            Emails
           </TabsTrigger>
           <TabsTrigger 
             value="stats" 
@@ -2148,296 +2142,184 @@ OUTPUT: The complete email only — greeting, body (label → Miner line → no-
           </div>
         </TabsContent>
 
-        <TabsContent value="inbox">
+        <TabsContent value="emails">
           <Card>
             <CardHeader>
               <CardTitle className="font-heading flex items-center gap-2">
                 <Inbox className="h-5 w-5" />
-                Client Inbox
+                Emails
               </CardTitle>
               <CardDescription>
-                Emails from clients and prospects sent to your company email. Acknowledge and track how to respond.
+                Inbox: respond to client emails. Follow-ups: generate personalized emails for your deals.
               </CardDescription>
             </CardHeader>
-            <CardContent>
-              <div className="flex items-center gap-2 mb-4">
-                <Select value={inboundEmailFilter} onValueChange={(v) => setInboundEmailFilter(v as typeof inboundEmailFilter)}>
-                  <SelectTrigger className="w-[180px]">
-                    <SelectValue />
-                  </SelectTrigger>
-                  <SelectContent>
-                    <SelectItem value="all">All emails</SelectItem>
-                    <SelectItem value="pending">Pending</SelectItem>
-                    <SelectItem value="acknowledged">Acknowledged</SelectItem>
-                    <SelectItem value="replied">Replied</SelectItem>
-                  </SelectContent>
-                </Select>
-                <Button
-                  variant="outline"
-                  size="sm"
-                  onClick={() => refreshInbound()}
-                  disabled={inboundEmailSyncing || inboundEmailsLoading}
-                >
-                  <RefreshCw className={`h-4 w-4 mr-2 ${inboundEmailSyncing ? 'animate-spin' : ''}`} />
-                  {inboundEmailSyncing ? 'Loading...' : 'Refresh emails'}
-                </Button>
-              </div>
-              {inboundEmailsLoading ? (
-                <div className="flex items-center justify-center py-12">
-                  <div className="h-8 w-8 rounded-full border-2 border-primary/30 border-t-primary animate-spin" />
+            <CardContent className="space-y-8">
+              {/* Client Inbox */}
+              <div>
+                <h3 className="text-sm font-semibold mb-3">Client Inbox</h3>
+                <div className="flex items-center gap-2 mb-4">
+                  <Select value={inboundEmailFilter} onValueChange={(v) => setInboundEmailFilter(v as typeof inboundEmailFilter)}>
+                    <SelectTrigger className="w-[180px]">
+                      <SelectValue />
+                    </SelectTrigger>
+                    <SelectContent>
+                      <SelectItem value="all">All emails</SelectItem>
+                      <SelectItem value="pending">Pending</SelectItem>
+                      <SelectItem value="acknowledged">Acknowledged</SelectItem>
+                      <SelectItem value="replied">Replied</SelectItem>
+                    </SelectContent>
+                  </Select>
+                  <Button
+                    variant="outline"
+                    size="sm"
+                    onClick={() => refreshInbound()}
+                    disabled={inboundEmailSyncing || inboundEmailsLoading}
+                  >
+                    <RefreshCw className={`h-4 w-4 mr-2 ${inboundEmailSyncing ? 'animate-spin' : ''}`} />
+                    {inboundEmailSyncing ? 'Loading...' : 'Refresh'}
+                  </Button>
                 </div>
-              ) : inboundEmails.length === 0 ? (
-                <div className="text-center py-12 text-muted-foreground">
-                  <Inbox className="h-12 w-12 mx-auto mb-3 opacity-50" />
-                  <p className="font-medium">No client emails yet</p>
-                  <p className="text-sm mt-1">Connect your Gmail or Outlook in Settings, then click Refresh to load emails.</p>
-                </div>
-              ) : (
-                <div className="space-y-6">
-                  {inboundEmails.map((email) => (
-                    <div
-                      key={email.id}
-                      className="border rounded-lg p-4 space-y-2"
-                    >
-                      <div className="flex items-start justify-between gap-4">
-                        <div className="min-w-0 flex-1">
-                          <div className="flex items-center gap-2 flex-wrap">
-                            <span className="font-medium">
-                              {email.senderName || email.senderEmail}
-                            </span>
-                            {email.senderName && (
-                              <span className="text-sm text-muted-foreground">{email.senderEmail}</span>
-                            )}
-                            {email.dealName && (
-                              <span className="text-xs px-2 py-0.5 rounded bg-primary/10 text-primary">
-                                Deal: {email.dealName}
-                              </span>
-                            )}
+                {inboundEmailsLoading ? (
+                  <div className="flex items-center justify-center py-12">
+                    <div className="h-8 w-8 rounded-full border-2 border-primary/30 border-t-primary animate-spin" />
+                  </div>
+                ) : inboundEmails.length === 0 ? (
+                  <div className="text-center py-8 text-muted-foreground border rounded-lg">
+                    <Inbox className="h-10 w-10 mx-auto mb-2 opacity-50" />
+                    <p className="text-sm font-medium">No client emails yet</p>
+                    <p className="text-xs mt-1">Connect Gmail or Outlook in Settings, then click Refresh.</p>
+                  </div>
+                ) : (
+                  <div className="space-y-4">
+                    {inboundEmails.map((email) => (
+                      <div key={email.id} className="border rounded-lg p-4 space-y-2">
+                        <div className="flex items-start justify-between gap-4">
+                          <div className="min-w-0 flex-1">
+                            <div className="flex items-center gap-2 flex-wrap">
+                              <span className="font-medium">{email.senderName || email.senderEmail}</span>
+                              {email.senderName && <span className="text-sm text-muted-foreground">{email.senderEmail}</span>}
+                              {email.dealName && (
+                                <span className="text-xs px-2 py-0.5 rounded bg-primary/10 text-primary">Deal: {email.dealName}</span>
+                              )}
+                            </div>
+                            <p className="text-sm font-medium mt-1 truncate">{email.subject || '(no subject)'}</p>
+                            <p className="text-xs text-muted-foreground">{new Date(email.receivedAt).toLocaleString()}</p>
                           </div>
-                          <p className="text-sm font-medium mt-1 truncate">{email.subject || '(no subject)'}</p>
-                          <p className="text-xs text-muted-foreground mt-0.5">
-                            {new Date(email.receivedAt).toLocaleString()}
-                          </p>
-                        </div>
-                        <div className="flex items-center gap-4 shrink-0">
-                          <span className={`text-xs px-2 py-1 rounded ${
-                            email.status === 'pending' ? 'bg-amber-100 text-amber-800 dark:bg-amber-900/50 dark:text-amber-200' :
-                            email.status === 'acknowledged' ? 'bg-blue-100 text-blue-800 dark:bg-blue-900/50 dark:text-blue-200' :
-                            'bg-green-100 text-green-800 dark:bg-green-900/50 dark:text-green-200'
-                          }`}>
-                            {email.status}
-                          </span>
-                          {email.status !== 'acknowledged' && (
-                            <Button
-                              variant="outline"
-                              size="sm"
-                              onClick={async () => {
+                          <div className="flex items-center gap-2 shrink-0 flex-wrap">
+                            <span className={`text-xs px-2 py-1 rounded ${
+                              email.status === 'pending' ? 'bg-amber-100 text-amber-800 dark:bg-amber-900/50 dark:text-amber-200' :
+                              email.status === 'acknowledged' ? 'bg-blue-100 text-blue-800 dark:bg-blue-900/50 dark:text-blue-200' :
+                              'bg-green-100 text-green-800 dark:bg-green-900/50 dark:text-green-200'
+                            }`}>{email.status}</span>
+                            {email.status !== 'acknowledged' && (
+                              <Button variant="outline" size="sm" onClick={async () => {
                                 try {
                                   const res = await fetch(`/api/org/inbound-emails/${email.id}`, {
-                                    method: 'PATCH',
-                                    headers: { 'Content-Type': 'application/json' },
+                                    method: 'PATCH', headers: { 'Content-Type': 'application/json' },
                                     body: JSON.stringify({ status: 'acknowledged' }),
                                   });
                                   const data = await res.json();
-                                  if (res.status === 404) {
-                                    toast.error(data.error || 'Email not found—refreshing inbox.');
-                                    fetchInboundOnly();
-                                    return;
-                                  }
+                                  if (res.status === 404) { toast.error(data.error || 'Email not found'); fetchInboundOnly(); return; }
                                   if (data.error) throw new Error(data.error);
-                                  setInboundEmails((prev) =>
-                                    prev.map((e) => (e.id === email.id ? { ...e, status: 'acknowledged' as const } : e))
-                                  );
-                                  toast.success('Marked as acknowledged');
-                                } catch (e: any) {
-                                  toast.error(e?.message || 'Failed to update');
-                                }
-                              }}
-                            >
-                              <Check className="h-4 w-4 mr-1" />
-                              Acknowledge
-                            </Button>
-                          )}
-                          {email.status !== 'replied' && (
-                            <Button
-                              variant="outline"
-                              size="sm"
-                              onClick={async () => {
+                                  setInboundEmails((prev) => prev.map((e) => (e.id === email.id ? { ...e, status: 'acknowledged' as const } : e)));
+                                  toast.success('Acknowledged');
+                                } catch (e: any) { toast.error(e?.message || 'Failed'); }
+                              }}>
+                                <Check className="h-4 w-4 mr-1" /> Acknowledge
+                              </Button>
+                            )}
+                            {email.status !== 'replied' && (
+                              <Button variant="outline" size="sm" onClick={async () => {
                                 try {
                                   const res = await fetch(`/api/org/inbound-emails/${email.id}`, {
-                                    method: 'PATCH',
-                                    headers: { 'Content-Type': 'application/json' },
+                                    method: 'PATCH', headers: { 'Content-Type': 'application/json' },
                                     body: JSON.stringify({ status: 'replied' }),
                                   });
                                   const data = await res.json();
-                                  if (res.status === 404) {
-                                    toast.error(data.error || 'Email not found—refreshing inbox.');
-                                    fetchInboundOnly();
-                                    return;
-                                  }
+                                  if (res.status === 404) { toast.error(data.error || 'Email not found'); fetchInboundOnly(); return; }
                                   if (data.error) throw new Error(data.error);
-                                  setInboundEmails((prev) =>
-                                    prev.map((e) => (e.id === email.id ? { ...e, status: 'replied' as const } : e))
-                                  );
-                                  toast.success('Marked as replied');
-                                } catch (e: any) {
-                                  toast.error(e?.message || 'Failed to update');
-                                }
-                              }}
-                            >
-                              <Reply className="h-4 w-4 mr-1" />
-                              Mark replied
+                                  setInboundEmails((prev) => prev.map((e) => (e.id === email.id ? { ...e, status: 'replied' as const } : e)));
+                                  toast.success('Marked replied');
+                                } catch (e: any) { toast.error(e?.message || 'Failed'); }
+                              }}>
+                                <Reply className="h-4 w-4 mr-1" /> Mark replied
+                              </Button>
+                            )}
+                            <Button variant="outline" size="sm" onClick={() => { setGeneratedReplyForId(email.id); setGeneratedReplyText(''); }}>
+                              <Pencil className="h-4 w-4 mr-1" /> Compose
                             </Button>
-                          )}
-                          <Button
-                            variant="outline"
-                            size="sm"
-                            onClick={() => {
-                              setGeneratedReplyForId(email.id);
-                              setGeneratedReplyText('');
-                            }}
-                          >
-                            <Pencil className="h-4 w-4 mr-1" />
-                            Compose
-                          </Button>
-                          <Button
-                            variant="outline"
-                            size="sm"
-                            onClick={async () => {
-                              setGeneratingReplyForId(email.id);
-                              setGeneratedReplyForId(null);
-                              setGeneratedReplyText('');
+                            <Button variant="outline" size="sm" onClick={async () => {
+                              setGeneratingReplyForId(email.id); setGeneratedReplyForId(null); setGeneratedReplyText('');
                               try {
                                 const res = await fetch('/api/ai/generate-email-reply', {
-                                  method: 'POST',
-                                  headers: { 'Content-Type': 'application/json' },
+                                  method: 'POST', headers: { 'Content-Type': 'application/json' },
                                   body: JSON.stringify({ emailId: email.id }),
                                 });
                                 const data = await res.json();
                                 if (data.error) throw new Error(data.error);
-                                setGeneratedReplyForId(email.id);
-                                setGeneratedReplyText(data.reply || '');
-                              } catch (e: any) {
-                                toast.error(e.message || 'Failed to generate reply');
-                              } finally {
-                                setGeneratingReplyForId(null);
-                              }
-                            }}
-                            disabled={generatingReplyForId === email.id}
-                          >
-                            {generatingReplyForId === email.id ? (
-                              <span className="animate-pulse">Generating...</span>
-                            ) : (
-                              <>
-                                <Sparkles className="h-4 w-4 mr-1" />
-                                Generate reply
-                              </>
-                            )}
-                          </Button>
+                                setGeneratedReplyForId(email.id); setGeneratedReplyText(data.reply || '');
+                              } catch (e: any) { toast.error((e as Error).message || 'Failed'); } finally { setGeneratingReplyForId(null); }
+                            }} disabled={generatingReplyForId === email.id}>
+                              {generatingReplyForId === email.id ? <span className="animate-pulse">Generating...</span> : <><Sparkles className="h-4 w-4 mr-1" /> Generate reply</>}
+                            </Button>
+                          </div>
                         </div>
-                      </div>
-                      {generatedReplyForId === email.id && (
-                        <div className="mt-3 pt-3 border-t">
-                          <p className="text-sm font-medium mb-2">Reply (edit before sending)</p>
-                          <Textarea
-                            value={generatedReplyText}
-                            onChange={(e) => setGeneratedReplyText(e.target.value)}
-                            className="min-h-[120px] font-sans text-sm resize-y"
-                            placeholder="Edit your reply..."
-                          />
-                          <div className="flex gap-2 mt-2 flex-wrap">
-                            <Button
-                              size="sm"
-                              onClick={async () => {
+                        {generatedReplyForId === email.id && (
+                          <div className="mt-3 pt-3 border-t">
+                            <p className="text-sm font-medium mb-2">Reply (edit before sending)</p>
+                            <Textarea value={generatedReplyText} onChange={(e) => setGeneratedReplyText(e.target.value)} className="min-h-[100px] font-sans text-sm resize-y" placeholder="Edit your reply..." />
+                            <div className="flex gap-2 mt-2 flex-wrap">
+                              <Button size="sm" onClick={async () => {
                                 setSendingReplyForId(email.id);
                                 try {
                                   const res = await fetch('/api/org/send-email-reply', {
-                                    method: 'POST',
-                                    headers: { 'Content-Type': 'application/json' },
+                                    method: 'POST', headers: { 'Content-Type': 'application/json' },
                                     body: JSON.stringify({ emailId: email.id, replyBody: generatedReplyText }),
                                   });
                                   const data = await res.json();
                                   if (data.error) throw new Error(data.error);
-                                  setInboundEmails((prev) =>
-                                    prev.map((e) => (e.id === email.id ? { ...e, status: 'replied' as const } : e))
-                                  );
-                                  setGeneratedReplyForId(null);
-                                  setGeneratedReplyText('');
-                                  toast.success('Reply sent');
-                                } catch (e: any) {
-                                  toast.error(e?.message || 'Failed to send');
-                                } finally {
-                                  setSendingReplyForId(null);
-                                }
-                              }}
-                              disabled={sendingReplyForId === email.id || !generatedReplyText.trim()}
-                            >
-                              {sendingReplyForId === email.id ? (
-                                <span className="animate-pulse">Sending...</span>
-                              ) : (
-                                <>
-                                  <Send className="h-4 w-4 mr-1" />
-                                  Send reply
-                                </>
-                              )}
-                            </Button>
-                            <Button
-                              size="sm"
-                              variant="outline"
-                              onClick={() => {
-                                navigator.clipboard.writeText(generatedReplyText);
-                                toast.success('Reply copied to clipboard');
-                              }}
-                              disabled={!generatedReplyText.trim()}
-                            >
-                              Copy
-                            </Button>
-                            <Button size="sm" variant="ghost" onClick={() => { setGeneratedReplyForId(null); setGeneratedReplyText(''); }}>
-                              Dismiss
-                            </Button>
+                                  setInboundEmails((prev) => prev.map((e) => (e.id === email.id ? { ...e, status: 'replied' as const } : e)));
+                                  setGeneratedReplyForId(null); setGeneratedReplyText(''); toast.success('Reply sent');
+                                } catch (e: any) { toast.error((e as Error)?.message || 'Failed'); } finally { setSendingReplyForId(null); }
+                              }} disabled={sendingReplyForId === email.id || !generatedReplyText.trim()}>
+                                {sendingReplyForId === email.id ? <span className="animate-pulse">Sending...</span> : <><Send className="h-4 w-4 mr-1" /> Send reply</>}
+                              </Button>
+                              <Button size="sm" variant="outline" onClick={() => { navigator.clipboard.writeText(generatedReplyText); toast.success('Copied'); }} disabled={!generatedReplyText.trim()}>Copy</Button>
+                              <Button size="sm" variant="ghost" onClick={() => { setGeneratedReplyForId(null); setGeneratedReplyText(''); }}>Dismiss</Button>
+                            </div>
                           </div>
-                        </div>
-                      )}
-                      {(email.bodyText || email.bodyHtml) && (
-                        <div className="mt-2 pt-2 border-t text-sm text-muted-foreground line-clamp-3">
-                          {htmlToPlainText(email.bodyText || email.bodyHtml || '').slice(0, 350)}
-                          {htmlToPlainText(email.bodyText || email.bodyHtml || '').length > 350 ? '...' : ''}
-                        </div>
-                      )}
-                    </div>
-                  ))}
-                </div>
-              )}
-            </CardContent>
-          </Card>
-        </TabsContent>
-
-        <TabsContent value="emails">
-          <Card>
-            <CardHeader>
-              <CardTitle className="font-heading">Email Generator</CardTitle>
-              <CardDescription>
-                Generate personalized follow-up emails for your deals
-              </CardDescription>
-            </CardHeader>
-            <CardContent>
-              <div className="mb-6">
-                <label className="text-sm font-medium">Email Tone</label>
-                <div className="flex items-center gap-4 mt-2">
-                  <Slider
-                    value={[emailTone]}
-                    onValueChange={(value) => setEmailTone(value[0])}
-                    max={100}
-                    step={33}
-                    className="w-full max-w-md"
-                  />
-                  <span className="text-sm text-muted-foreground shrink-0">
-                    {getToneDescription(emailTone)}
-                  </span>
-                </div>
+                        )}
+                        {(email.bodyText || email.bodyHtml) && (
+                          <div className="mt-2 pt-2 border-t text-sm text-muted-foreground line-clamp-3">
+                            {htmlToPlainText(email.bodyText || email.bodyHtml || '').slice(0, 350)}{htmlToPlainText(email.bodyText || email.bodyHtml || '').length > 350 ? '...' : ''}
+                          </div>
+                        )}
+                      </div>
+                    ))}
+                  </div>
+                )}
               </div>
 
-              <div className="grid grid-cols-1 xl:grid-cols-[2fr_1fr] gap-6 min-w-0">
+              {/* Follow-up emails */}
+              <div>
+                <h3 className="text-sm font-semibold mb-3">Generate follow-up emails</h3>
+                <div className="mb-4">
+                  <label className="text-sm font-medium">Tone</label>
+                  <div className="flex items-center gap-4 mt-2">
+                    <Slider
+                      value={[emailTone]}
+                      onValueChange={(value) => setEmailTone(value[0])}
+                      max={100}
+                      step={33}
+                      className="w-full max-w-md"
+                    />
+                    <span className="text-sm text-muted-foreground shrink-0">
+                      {getToneDescription(emailTone)}
+                    </span>
+                  </div>
+                </div>
+
+                <div className="grid grid-cols-1 xl:grid-cols-[2fr_1fr] gap-6 min-w-0">
                 {/* Left panel: max 2/3, scrollbar at top when content overflows */}
                 <div className="min-w-0 flex flex-col">
                   {emailGenClientWidth > 0 && emailGenScrollWidth > emailGenClientWidth && (
@@ -2631,6 +2513,7 @@ OUTPUT: The complete email only — greeting, body (label → Miner line → no-
                     </div>
                   )}
                 </div>
+              </div>
               </div>
             </CardContent>
           </Card>

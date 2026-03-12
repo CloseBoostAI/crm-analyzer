@@ -321,9 +321,15 @@ export function getDealStageLabel(stage: string): string {
   return stage;
 }
 
-/** Default stages for new users (common sales pipeline) */
+/** Default deal stages (fixed order - no customization) */
 export const DEFAULT_DEAL_STAGE_KEYS = [
-  'qualifiedtobuy', 'appointmentscheduled', 'presentationscheduled',
-  'decisionmakerboughtin', 'contractsent', 'closedwon', 'closedlost'
+  'appointmentscheduled',
+  'closedlost',
+  'closedwon',
+  'contractsent',
+  'decisionmakerboughtin',
+  'demo',
+  'lead',
+  'qualifiedtobuy',
 ];
 

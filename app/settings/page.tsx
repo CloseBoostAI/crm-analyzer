@@ -31,8 +31,6 @@ import {
   ChevronRight,
   ChevronDown,
   GripVertical,
-  GitBranch,
-  Plus,
   Mail,
   ListTodo,
   User,
@@ -46,7 +44,7 @@ import {
   BarChart2,
   Link2,
 } from "lucide-react"
-import { cn, getDealDisplayName, UNIVERSAL_DEAL_STAGES, DEFAULT_DEAL_STAGE_KEYS, getDealStageColor } from "@/lib/utils"
+import { cn, getDealDisplayName } from "@/lib/utils"
 import {
   DndContext,
   closestCenter,
@@ -131,169 +129,6 @@ function SortableColumnItem({
         </Button>
       )}
     </div>
-  )
-}
-
-function SortableStageItem({
-  stageKey,
-  label,
-  onRemove,
-}: {
-  stageKey: string
-  label: string
-  onRemove: () => void
-}) {
-  const { attributes, listeners, setNodeRef, transform, transition, isDragging } = useSortable({
-    id: `stage-${stageKey}`,
-  })
-  const style = { transform: CSS.Transform.toString(transform), transition }
-  const colors = getDealStageColor(label)
-  return (
-    <div
-      ref={setNodeRef}
-      style={style}
-      className={cn(
-        "flex items-center justify-between rounded-lg border p-3 bg-white dark:bg-gray-900",
-        isDragging && "shadow-lg ring-2 ring-blue-200 z-10 relative"
-      )}
-    >
-      <div className="flex items-center gap-3">
-        <button
-          className="cursor-grab active:cursor-grabbing text-muted-foreground hover:text-foreground touch-none"
-          {...attributes}
-          {...listeners}
-        >
-          <GripVertical className="h-4 w-4" />
-        </button>
-        <span className={cn("inline-flex px-2 py-0.5 rounded text-xs font-medium", colors.bg, colors.text)}>
-          {label}
-        </span>
-      </div>
-      <Button variant="ghost" size="sm" onClick={onRemove} className="text-muted-foreground hover:text-destructive">
-        Remove
-      </Button>
-    </div>
-  )
-}
-
-function DealStagesSection() {
-  const { settings, setDealStages } = useSettings()
-  const dealStages = settings.dealsOverview.dealStages
-
-  const sensors = useSensors(
-    useSensor(PointerSensor, { activationConstraint: { distance: 5 } }),
-    useSensor(KeyboardSensor, { coordinateGetter: sortableKeyboardCoordinates })
-  )
-
-  const handleStageDragEnd = (event: DragEndEvent) => {
-    const { active, over } = event
-    if (!over || active.id === over.id) return
-    const activeKey = (active.id as string).replace(/^stage-/, "")
-    const overKey = (over.id as string).replace(/^stage-/, "")
-    const oldIndex = dealStages.indexOf(activeKey)
-    const newIndex = dealStages.indexOf(overKey)
-    if (oldIndex === -1 || newIndex === -1) return
-    const reordered = arrayMove([...dealStages], oldIndex, newIndex)
-    setDealStages(reordered)
-  }
-
-  const addStage = (key: string) => {
-    if (dealStages.includes(key)) return
-    setDealStages([...dealStages, key])
-  }
-
-  const removeStage = (key: string) => {
-    setDealStages(dealStages.filter((k) => k !== key))
-  }
-
-  const resetStages = () => {
-    setDealStages([...DEFAULT_DEAL_STAGE_KEYS])
-    toast.success("Deal stages reset to default")
-  }
-
-  const availableStages = UNIVERSAL_DEAL_STAGES.filter((s) => !dealStages.includes(s.key))
-
-  return (
-    <Collapsible>
-      <CollapsibleTrigger asChild>
-        <button className="flex w-full items-center justify-between rounded-lg border p-4 hover:bg-muted/50 transition-colors cursor-pointer group">
-          <div className="flex items-center gap-3">
-            <GitBranch className="h-4 w-4 text-muted-foreground" />
-            <div className="text-left">
-              <p className="text-sm font-medium">Deal Stages</p>
-              <p className="text-xs text-muted-foreground">
-                {dealStages.length} stages · Select which your company uses and drag to reorder
-              </p>
-            </div>
-          </div>
-          <div className="flex items-center gap-2">
-            <span
-              className="text-xs text-muted-foreground group-hover:text-foreground transition-colors"
-              onClick={(e) => { e.stopPropagation(); resetStages(); }}
-            >
-              <Button variant="outline" size="sm" asChild tabIndex={-1}>
-                <span>
-                  <RotateCcw className="h-4 w-4 mr-2" />
-                  Reset
-                </span>
-              </Button>
-            </span>
-            <ChevronDown className="h-5 w-5 text-muted-foreground transition-transform group-data-[state=closed]:-rotate-90" />
-          </div>
-        </button>
-      </CollapsibleTrigger>
-      <CollapsibleContent className="pt-3">
-        <div className="space-y-4">
-          <p className="text-sm text-muted-foreground">
-            Your pipeline stages determine how deals are sorted and which options appear when editing deals.
-          </p>
-          <DndContext
-            sensors={sensors}
-            collisionDetection={closestCenter}
-            onDragEnd={handleStageDragEnd}
-          >
-            <SortableContext
-              items={dealStages.map((k) => `stage-${k}`)}
-              strategy={verticalListSortingStrategy}
-            >
-              <div className="space-y-2">
-                {dealStages.map((key) => {
-                  const stage = UNIVERSAL_DEAL_STAGES.find((s) => s.key === key)
-                  if (!stage) return null
-                  return (
-                    <SortableStageItem
-                      key={stage.key}
-                      stageKey={stage.key}
-                      label={stage.label}
-                      onRemove={() => removeStage(stage.key)}
-                    />
-                  )
-                })}
-              </div>
-            </SortableContext>
-          </DndContext>
-          {availableStages.length > 0 && (
-            <div className="pt-2 border-t">
-              <p className="text-xs font-medium text-muted-foreground mb-2">Add stage</p>
-              <div className="flex flex-wrap gap-2">
-                {availableStages.map((s) => (
-                  <Button
-                    key={s.key}
-                    variant="outline"
-                    size="sm"
-                    onClick={() => addStage(s.key)}
-                    className="gap-1"
-                  >
-                    <Plus className="h-3 w-3" />
-                    {s.label}
-                  </Button>
-                ))}
-              </div>
-            </div>
-          )}
-        </div>
-      </CollapsibleContent>
-    </Collapsible>
   )
 }
 
@@ -1205,8 +1040,6 @@ export default function SettingsPage() {
                     onCheckedChange={(checked) => updateDealsOverview({ horizontalScroll: checked })}
                   />
                 </div>
-
-                <DealStagesSection />
 
                 <Collapsible>
                   <CollapsibleTrigger asChild>

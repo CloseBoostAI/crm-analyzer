@@ -148,9 +148,7 @@ function mergeWithDefaults(parsed: Record<string, unknown>): Settings {
     dealsOverview: {
       ...DEFAULT_SETTINGS.dealsOverview,
       ...(parsed.dealsOverview as object),
-      dealStages: Array.isArray((parsed.dealsOverview as { dealStages?: string[] })?.dealStages)
-        ? (parsed.dealsOverview as { dealStages: string[] }).dealStages
-        : DEFAULT_SETTINGS.dealsOverview.dealStages,
+      dealStages: [...DEFAULT_DEAL_STAGE_KEYS],
     },
     profile: { ...DEFAULT_SETTINGS.profile, ...(parsed.profile as object) },
     email: { ...DEFAULT_SETTINGS.email, ...(parsed.email as object) },
@@ -167,7 +165,6 @@ type SettingsContextType = {
   reorderDealsColumns: (order: DealsColumnKey[]) => void
   resetDealsColumns: () => void
   updateDealsOverview: (updates: Partial<Settings["dealsOverview"]>) => void
-  setDealStages: (stages: string[]) => void
   setCustomDealOrder: (order: string[]) => void
   updateProfile: (updates: Partial<Settings["profile"]>) => void
   updateEmailSettings: (updates: Partial<Settings["email"]>) => void
@@ -297,13 +294,6 @@ export function SettingsProvider({ children }: { children: ReactNode }) {
     }))
   }
 
-  const setDealStages = (stages: string[]) => {
-    setSettings((prev) => ({
-      ...prev,
-      dealsOverview: { ...prev.dealsOverview, dealStages: stages },
-    }))
-  }
-
   const setCustomDealOrder = (order: string[]) => {
     setSettings((prev) => ({ ...prev, customDealOrder: order }))
   }
@@ -356,7 +346,6 @@ export function SettingsProvider({ children }: { children: ReactNode }) {
         reorderDealsColumns,
         resetDealsColumns,
         updateDealsOverview,
-        setDealStages,
         setCustomDealOrder,
         updateProfile,
         updateEmailSettings,

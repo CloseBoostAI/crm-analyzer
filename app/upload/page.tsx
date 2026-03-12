@@ -12,85 +12,18 @@ import { toast } from "sonner";
 import { useRouter } from 'next/navigation';
 import { saveDeals, saveCustomers, saveLogs, loadDeals, loadCustomers } from '@/lib/supabase/data';
 import { TARGET_FIELDS, tryAutoMap, applyMapping, type ColumnMapping } from '@/lib/column-mapper';
-import { useSettings } from '@/lib/settings-context';
-import { UNIVERSAL_DEAL_STAGES, matchDealStage, getDealStageLabel, getDealStageColor, cn } from '@/lib/utils';
-import {
-  DndContext,
-  closestCenter,
-  KeyboardSensor,
-  PointerSensor,
-  useSensor,
-  useSensors,
-  type DragEndEvent,
-} from '@dnd-kit/core';
-import {
-  arrayMove,
-  SortableContext,
-  sortableKeyboardCoordinates,
-  useSortable,
-  verticalListSortingStrategy,
-} from '@dnd-kit/sortable';
-import { CSS } from '@dnd-kit/utilities';
-import { GripVertical } from 'lucide-react';
+import { UNIVERSAL_DEAL_STAGES, DEFAULT_DEAL_STAGE_KEYS, getDealStageLabel } from '@/lib/utils';
 
 function DealStageOptions() {
-  const { settings } = useSettings();
-  const stages = settings.dealsOverview.dealStages.length > 0
-    ? settings.dealsOverview.dealStages
-        .map((k) => UNIVERSAL_DEAL_STAGES.find((s) => s.key === k))
-        .filter(Boolean) as typeof UNIVERSAL_DEAL_STAGES
-    : UNIVERSAL_DEAL_STAGES;
+  const stages = DEFAULT_DEAL_STAGE_KEYS
+    .map((k) => UNIVERSAL_DEAL_STAGES.find((s) => s.key === k))
+    .filter(Boolean) as typeof UNIVERSAL_DEAL_STAGES;
   return (
     <>
       {stages.map((s) => (
         <option key={s.key} value={s.label}>{s.label}</option>
       ))}
     </>
-  );
-}
-
-function SortableStageItemUpload({
-  stageKey,
-  label,
-  position,
-  onRemove,
-}: {
-  stageKey: string;
-  label: string;
-  position: number;
-  onRemove: () => void;
-}) {
-  const { attributes, listeners, setNodeRef, transform, transition, isDragging } = useSortable({
-    id: `stage-${stageKey}`,
-  });
-  const style = { transform: CSS.Transform.toString(transform), transition };
-  const colors = getDealStageColor(label);
-  return (
-    <div
-      ref={setNodeRef}
-      style={style}
-      className={cn(
-        'flex items-center justify-between rounded-lg border p-3 bg-white dark:bg-gray-900',
-        isDragging && 'shadow-lg ring-2 ring-blue-200 z-10 relative'
-      )}
-    >
-      <div className="flex items-center gap-3">
-        <span className="w-6 text-sm font-medium text-muted-foreground tabular-nums">{position}.</span>
-        <button
-          className="cursor-grab active:cursor-grabbing text-muted-foreground hover:text-foreground touch-none"
-          {...attributes}
-          {...listeners}
-        >
-          <GripVertical className="h-4 w-4" />
-        </button>
-        <span className={cn('inline-flex px-2 py-0.5 rounded text-xs font-medium', colors.bg, colors.text)}>
-          {label}
-        </span>
-      </div>
-      <Button variant="ghost" size="sm" onClick={onRemove} className="text-muted-foreground hover:text-destructive">
-        Remove
-      </Button>
-    </div>
   );
 }
 
@@ -247,10 +180,8 @@ export default function UploadPage() {
   const [uploading, setUploading] = useState(false);
   const [progress, setProgress] = useState(0);
   const [mappingStep, setMappingStep] = useState(false);
-  const [uploadStep, setUploadStep] = useState<'columns' | 'dealStages' | 'orderStages'>('columns');
+  const [uploadStep, setUploadStep] = useState<'columns'>('columns');
   const [columnMapping, setColumnMapping] = useState<ColumnMapping>({});
-  const [dealStageMapping, setDealStageMapping] = useState<Record<string, string>>({});
-  const [orderedStagesForUpload, setOrderedStagesForUpload] = useState<string[]>([]);
   const [parsedHeaders, setParsedHeaders] = useState<string[]>([]);
   const [parsedRows, setParsedRows] = useState<string[][]>([]);
   const [mappingLoading, setMappingLoading] = useState(false);
@@ -500,10 +431,8 @@ export default function UploadPage() {
       setProgress(30);
 
       const resolveStage = (rawStage: string): string => {
-        const mapped = dealStageMapping[rawStage];
-        if (mapped) return mapped;
         const suggested = getDealStageLabel(rawStage);
-        return suggested !== rawStage ? suggested : rawStage;
+        return suggested || rawStage;
       };
 
       const results = mappedRecords.map(record => {
@@ -574,8 +503,6 @@ export default function UploadPage() {
       toast.success(`Successfully processed ${results.length} records!`);
       setMappingStep(false);
       setUploadStep('columns');
-      setDealStageMapping({});
-      setOrderedStagesForUpload([]);
       setFiles([]);
       setManualDeals([{ ...emptyDeal }]);
 
@@ -725,98 +652,6 @@ export default function UploadPage() {
 
   const mappedCount = Object.values(columnMapping).filter(Boolean).length;
 
-  // Find which header maps to deal_stage and get unique values from that column
-  const dealStageColumnHeader = parsedHeaders.find((h) => columnMapping[h] === 'deal_stage');
-  const uniqueFileStages = (() => {
-    if (!dealStageColumnHeader) return [];
-    const colIndex = parsedHeaders.indexOf(dealStageColumnHeader);
-    if (colIndex === -1) return [];
-    const values = new Set<string>();
-    for (const row of parsedRows) {
-      const val = (row[colIndex] || '').trim();
-      if (val) values.add(val);
-    }
-    return Array.from(values).sort();
-  })();
-
-  // Use all universal stages for mapping (not just user's configured pipeline) so any file stage can be linked
-  const allCloseBoostStages = UNIVERSAL_DEAL_STAGES;
-
-  const { settings, setDealStages } = useSettings();
-
-  const goToDealStagesStep = () => {
-    if (uniqueFileStages.length > 0) {
-      const suggested: Record<string, string> = {};
-      for (const fileStage of uniqueFileStages) {
-        const matched = matchDealStage(fileStage);
-        if (matched) {
-          const s = UNIVERSAL_DEAL_STAGES.find((x) => x.key === matched);
-          if (s) suggested[fileStage] = s.label;
-        }
-      }
-      setDealStageMapping((prev) => ({ ...suggested, ...prev }));
-    }
-    setUploadStep('dealStages');
-  };
-
-  const goToOrderStagesStep = () => {
-    const resolveToKey = (fileStage: string): string | null => {
-      const mapped = dealStageMapping[fileStage];
-      if (mapped) {
-        const s = UNIVERSAL_DEAL_STAGES.find((x) => x.label === mapped);
-        return s?.key ?? null;
-      }
-      const matched = matchDealStage(fileStage);
-      return matched;
-    };
-    const keysFromFile = uniqueFileStages
-      .map(resolveToKey)
-      .filter((k): k is string => !!k);
-    const seen = new Set<string>();
-    const ordered = keysFromFile.filter((k) => {
-      if (seen.has(k)) return false;
-      seen.add(k);
-      return true;
-    });
-    let initial = ordered.length > 0 ? ordered : settings.dealsOverview.dealStages;
-    if (initial.length === 0) initial = [];
-    if (!initial.includes('closedlost')) {
-      initial = [...initial, 'closedlost'];
-    }
-    setOrderedStagesForUpload(initial);
-    setUploadStep('orderStages');
-  };
-
-  const handleOrderStageDragEnd = (event: DragEndEvent) => {
-    const { active, over } = event;
-    if (!over || active.id === over.id) return;
-    const activeKey = (active.id as string).replace(/^stage-/, '');
-    const overKey = (over.id as string).replace(/^stage-/, '');
-    const oldIndex = orderedStagesForUpload.indexOf(activeKey);
-    const newIndex = orderedStagesForUpload.indexOf(overKey);
-    if (oldIndex === -1 || newIndex === -1) return;
-    setOrderedStagesForUpload(arrayMove([...orderedStagesForUpload], oldIndex, newIndex));
-  };
-
-  const addStageToOrder = (key: string) => {
-    if (orderedStagesForUpload.includes(key)) return;
-    setOrderedStagesForUpload([...orderedStagesForUpload, key]);
-  };
-
-  const removeStageFromOrder = (key: string) => {
-    setOrderedStagesForUpload(orderedStagesForUpload.filter((k) => k !== key));
-  };
-
-  const confirmAndProcess = async () => {
-    setDealStages(orderedStagesForUpload);
-    await processWithMapping();
-  };
-
-  const orderStageSensors = useSensors(
-    useSensor(PointerSensor, { activationConstraint: { distance: 5 } }),
-    useSensor(KeyboardSensor, { coordinateGetter: sortableKeyboardCoordinates })
-  );
-
   return (
 <div className="container mx-auto p-6 min-h-[85vh]">
       <div className="mb-8">
@@ -850,15 +685,6 @@ GreenField Retail,Amanda Rodriguez,2026-02-25,Negotiation,63200,Pricing adjusted
         <div className="flex flex-col h-full">
           {mappingStep ? (
             <>
-              {dealStageColumnHeader && (
-                <div className="flex items-center justify-center gap-2 mb-4">
-                  <span className={`text-sm font-medium ${uploadStep === 'columns' ? 'text-primary' : 'text-muted-foreground'}`}>1. Columns</span>
-                  <span className="text-muted-foreground">→</span>
-                  <span className={`text-sm font-medium ${uploadStep === 'dealStages' ? 'text-primary' : 'text-muted-foreground'}`}>2. Map Stages</span>
-                  <span className="text-muted-foreground">→</span>
-                  <span className={`text-sm font-medium ${uploadStep === 'orderStages' ? 'text-primary' : 'text-muted-foreground'}`}>3. Order Stages</span>
-                </div>
-              )}
               {uploadStep === 'columns' ? (
                 <>
                   <h2 className="text-xl font-semibold text-center mb-2">Map Your Columns</h2>
@@ -920,8 +746,6 @@ GreenField Retail,Amanda Rodriguez,2026-02-25,Negotiation,63200,Pricing adjusted
                             setMappingStep(false);
                             setUploadStep('columns');
                             setColumnMapping({});
-                            setDealStageMapping({});
-                            setOrderedStagesForUpload([]);
                             setParsedHeaders([]);
                             setParsedRows([]);
                           }}
@@ -931,142 +755,15 @@ GreenField Retail,Amanda Rodriguez,2026-02-25,Negotiation,63200,Pricing adjusted
                         <span className="text-sm text-gray-500">
                           {mappedCount} of {parsedHeaders.length} mapped
                         </span>
-                        {dealStageColumnHeader ? (
-                          <Button onClick={goToDealStagesStep}>
-                            Next: Map Deal Stages
-                          </Button>
-                        ) : (
-                          <Button
-                            onClick={processWithMapping}
-                            disabled={uploading || mappedCount === 0}
-                          >
-                            {uploading ? 'Processing...' : 'Confirm & Process'}
-                          </Button>
-                        )}
+                        <Button
+                          onClick={processWithMapping}
+                          disabled={uploading || mappedCount === 0}
+                        >
+                          {uploading ? 'Processing...' : 'Confirm & Process'}
+                        </Button>
                       </div>
                     </>
                   )}
-                </>
-              ) : uploadStep === 'dealStages' ? (
-                <>
-                  <h2 className="text-xl font-semibold text-center mb-2">Map Deal Stages</h2>
-                  <p className="text-sm text-gray-500 text-center mb-6">
-                    Link your file&apos;s deal stages to CloseBoost stages. This ensures consistent reporting across your pipeline.
-                  </p>
-
-                  <div className="space-y-2">
-                    {uniqueFileStages.map((fileStage) => (
-                      <div key={fileStage} className="flex items-center gap-3 p-3 rounded-lg bg-gray-50 dark:bg-gray-900 border">
-                        <div className="flex-1 min-w-0">
-                          <p className="text-sm font-medium truncate" title={fileStage}>{fileStage}</p>
-                          <p className="text-xs text-gray-400">Your file&apos;s stage name</p>
-                        </div>
-                        <span className="text-gray-300 shrink-0">&rarr;</span>
-                        <select
-                          value={dealStageMapping[fileStage] || ''}
-                          onChange={(e) => {
-                            const val = e.target.value;
-                            setDealStageMapping((prev) =>
-                              val ? { ...prev, [fileStage]: val } : (() => {
-                                const { [fileStage]: _, ...rest } = prev;
-                                return rest;
-                              })()
-                            );
-                          }}
-                          className={`flex-1 min-w-0 text-sm rounded-md border px-2 py-2 bg-background ${
-                            dealStageMapping[fileStage]
-                              ? 'border-green-400 text-green-700 dark:text-green-400'
-                              : 'border-red-400 dark:border-red-500'
-                          }`}
-                        >
-                          <option value="">Skip (keep original)</option>
-                          {allCloseBoostStages.map((s) => (
-                            <option key={s.key} value={s.label}>{s.label}</option>
-                          ))}
-                        </select>
-                      </div>
-                    ))}
-                  </div>
-
-                  <div className="flex items-center justify-between mt-6 pt-4 border-t">
-                    <Button variant="outline" onClick={() => setUploadStep('columns')}>
-                      Back
-                    </Button>
-                    <span className="text-sm text-gray-500">
-                      {Object.keys(dealStageMapping).length} of {uniqueFileStages.length} mapped
-                    </span>
-                    <Button onClick={goToOrderStagesStep}>
-                      Next: Order Deal Stages
-                    </Button>
-                  </div>
-                </>
-              ) : uploadStep === 'orderStages' ? (
-                <>
-                  <h2 className="text-xl font-semibold text-center mb-2">Order Deal Stages</h2>
-                  <p className="text-sm text-gray-500 text-center mb-6">
-                    Drag stages to their numbered position. Add any stages you use that didn&apos;t appear in your file. Closed Lost is included by default — remove it if you don&apos;t use it. This will become your default in Settings.
-                  </p>
-
-                  <DndContext
-                    sensors={orderStageSensors}
-                    collisionDetection={closestCenter}
-                    onDragEnd={handleOrderStageDragEnd}
-                  >
-                    <SortableContext
-                      items={orderedStagesForUpload.map((k) => `stage-${k}`)}
-                      strategy={verticalListSortingStrategy}
-                    >
-                      <div className="space-y-2">
-                        {orderedStagesForUpload.map((key, index) => {
-                          const stage = UNIVERSAL_DEAL_STAGES.find((s) => s.key === key);
-                          if (!stage) return null;
-                          return (
-                            <SortableStageItemUpload
-                              key={stage.key}
-                              stageKey={stage.key}
-                              label={stage.label}
-                              position={index + 1}
-                              onRemove={() => removeStageFromOrder(stage.key)}
-                            />
-                          );
-                        })}
-                      </div>
-                    </SortableContext>
-                  </DndContext>
-
-                  {UNIVERSAL_DEAL_STAGES.some((s) => !orderedStagesForUpload.includes(s.key)) && (
-                    <div className="pt-4 border-t mt-4">
-                      <p className="text-xs font-medium text-muted-foreground mb-2">Add stage</p>
-                      <div className="flex flex-wrap gap-2">
-                        {UNIVERSAL_DEAL_STAGES.filter((s) => !orderedStagesForUpload.includes(s.key)).map((s) => (
-                          <Button
-                            key={s.key}
-                            variant="outline"
-                            size="sm"
-                            onClick={() => addStageToOrder(s.key)}
-                            className="gap-1"
-                          >
-                            + {s.label}
-                          </Button>
-                        ))}
-                      </div>
-                    </div>
-                  )}
-
-                  <div className="flex items-center justify-between mt-6 pt-4 border-t">
-                    <Button variant="outline" onClick={() => setUploadStep('dealStages')}>
-                      Back
-                    </Button>
-                    <span className="text-sm text-gray-500">
-                      {orderedStagesForUpload.length} stages
-                    </span>
-                    <Button
-                      onClick={confirmAndProcess}
-                      disabled={uploading || orderedStagesForUpload.length === 0}
-                    >
-                      {uploading ? 'Processing...' : 'Confirm & Process'}
-                    </Button>
-                  </div>
                 </>
               ) : null}
             </>

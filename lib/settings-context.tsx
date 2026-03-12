@@ -70,9 +70,6 @@ type Settings = {
     name: string
     companyName: string
   }
-  email: {
-    signature: string
-  }
   tasks: {
     sortBy: TaskSortBy
     showCompleted: boolean
@@ -112,9 +109,6 @@ const DEFAULT_SETTINGS: Settings = {
     name: "",
     companyName: "",
   },
-  email: {
-    signature: "",
-  },
   tasks: {
     sortBy: "dueDate",
     showCompleted: true,
@@ -151,7 +145,6 @@ function mergeWithDefaults(parsed: Record<string, unknown>): Settings {
       dealStages: [...DEFAULT_DEAL_STAGE_KEYS],
     },
     profile: { ...DEFAULT_SETTINGS.profile, ...(parsed.profile as object) },
-    email: { ...DEFAULT_SETTINGS.email, ...(parsed.email as object) },
     tasks: { ...DEFAULT_SETTINGS.tasks, ...(parsed.tasks as object) },
     appearance: { ...DEFAULT_SETTINGS.appearance, ...(parsed.appearance as object) },
     statistics: { ...DEFAULT_SETTINGS.statistics, ...(parsed.statistics as object) },
@@ -167,7 +160,6 @@ type SettingsContextType = {
   updateDealsOverview: (updates: Partial<Settings["dealsOverview"]>) => void
   setCustomDealOrder: (order: string[]) => void
   updateProfile: (updates: Partial<Settings["profile"]>) => void
-  updateEmailSettings: (updates: Partial<Settings["email"]>) => void
   updateTaskSettings: (updates: Partial<Settings["tasks"]>) => void
   updateAppearance: (updates: Partial<Settings["appearance"]>) => void
   updateStatistics: (updates: Partial<Settings["statistics"]>) => void
@@ -195,7 +187,6 @@ function settingsToJson(settings: Settings): Record<string, unknown> {
     dealsSortMode: settings.dealsSortMode,
     customDealOrder: settings.customDealOrder,
     profile: settings.profile,
-    email: settings.email,
     tasks: settings.tasks,
     appearance: settings.appearance,
     statistics: settings.statistics,
@@ -305,13 +296,6 @@ export function SettingsProvider({ children }: { children: ReactNode }) {
     }))
   }
 
-  const updateEmailSettings = (updates: Partial<Settings["email"]>) => {
-    setSettings((prev) => ({
-      ...prev,
-      email: { ...prev.email, ...updates },
-    }))
-  }
-
   const updateTaskSettings = (updates: Partial<Settings["tasks"]>) => {
     setSettings((prev) => ({
       ...prev,
@@ -348,7 +332,6 @@ export function SettingsProvider({ children }: { children: ReactNode }) {
         updateDealsOverview,
         setCustomDealOrder,
         updateProfile,
-        updateEmailSettings,
         updateTaskSettings,
         updateAppearance,
         updateStatistics,

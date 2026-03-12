@@ -76,7 +76,6 @@ const SETTINGS_SECTIONS = [
   { id: "profile", label: "Profile", icon: Building2 },
   { id: "team", label: "Team", icon: Users },
   { id: "email-connections", label: "Connected Email", icon: Link2 },
-  { id: "email", label: "Email Generator", icon: Mail },
   { id: "tasks", label: "Tasks", icon: ListTodo },
   { id: "account", label: "Account", icon: User },
   { id: "appearance", label: "Appearance", icon: Palette },
@@ -920,7 +919,6 @@ export default function SettingsPage() {
     updateDealsOverview,
     updateStatistics,
     updateProfile,
-    updateEmailSettings,
     updateTaskSettings,
     updateAppearance,
   } = useSettings()
@@ -1216,36 +1214,6 @@ export default function SettingsPage() {
 
           {/* ── Email Connections ── */}
           {activeSection === "email-connections" && <EmailConnectionsSection />}
-
-          {/* ── Email Generator ── */}
-          {activeSection === "email" && (
-            <Card>
-              <CardHeader>
-                <CardTitle>Email Generator</CardTitle>
-                <CardDescription>
-                  Configure defaults for the email generator
-                </CardDescription>
-              </CardHeader>
-              <CardContent className="space-y-6">
-                <div className="rounded-lg border p-4 space-y-3">
-                  <div className="space-y-0.5">
-                    <Label htmlFor="signature" className="text-base font-medium">
-                      Email Signature Name
-                    </Label>
-                    <p className="text-sm text-muted-foreground">
-                      Replaces &quot;[Your name]&quot; at the end of generated emails. Leave blank to use your Profile name.
-                    </p>
-                  </div>
-                  <Input
-                    id="signature"
-                    value={settings.email.signature}
-                    onChange={(e) => updateEmailSettings({ signature: e.target.value })}
-                    placeholder="e.g. John Smith"
-                  />
-                </div>
-              </CardContent>
-            </Card>
-          )}
 
           {/* ── Tasks ── */}
           {activeSection === "tasks" && (

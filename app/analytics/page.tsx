@@ -962,7 +962,7 @@ Recent Interactions: ${customer.interactions.map(i => i.notes).join(', ')}`
         throw new Error('Unexpected API response format');
       }
 
-      const signOff = settings.email.signature || settings.profile.name;
+      const signOff = settings.profile.name;
       if (signOff) {
         generatedText = generatedText.replace(/\[Your name\]/gi, signOff);
       }
@@ -1137,7 +1137,7 @@ OUTPUT: The complete email only — greeting, body (label → Miner line → no-
       if (!response.ok) throw new Error('Failed to generate email');
       const result = await response.json();
       let text = result.choices?.[0]?.message?.content || '';
-      const signOff = settings.email.signature || settings.profile.name;
+      const signOff = settings.profile.name;
       if (signOff) {
         text = text.replace(/\[Your name\]/gi, signOff);
       }

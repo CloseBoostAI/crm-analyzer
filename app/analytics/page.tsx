@@ -926,7 +926,9 @@ STRICTLY FORBIDDEN (never include any of these):
 - Multiple paragraphs or long explanations
 - Post scripts or contact details in the body
 
-OUTPUT: The complete email only — greeting, body (label → Miner line → no-oriented question), closing, and "[Your name]". No commentary, no subject line.`;
+SIGNATURE: You MUST sign the email with exactly: "Best," (or "Best regards," / "Thanks," per tone) followed by a newline and then exactly this name: ${settings.profile.name || 'Your name'}. Never use "[Your name]", "AI Email Writer", or invent a name. Use exactly the name provided.
+
+OUTPUT: The complete email only — greeting, body (label → Miner line → no-oriented question), closing, and signature. No commentary, no subject line.`;
 
       const response = await fetch('/api/ai/generate', {
         method: 'POST',
@@ -965,6 +967,8 @@ Recent Interactions: ${customer.interactions.map(i => i.notes).join(', ')}`
       const signOff = settings.profile.name;
       if (signOff) {
         generatedText = generatedText.replace(/\[Your name\]/gi, signOff);
+        generatedText = generatedText.replace(/\bAI Email Writer\b/gi, signOff);
+        generatedText = generatedText.replace(/(Best,?|Best regards,?|Thanks,?|Regards,?)\s*\n\s*[^\n]+$/gm, `$1\n${signOff}`);
       }
 
       clearInterval(progressInterval);
@@ -1118,7 +1122,9 @@ STRICTLY FORBIDDEN (never include any of these):
 - Multiple paragraphs or long explanations
 - Post scripts or contact details in the body
 
-OUTPUT: The complete email only — greeting, body (label → Miner line → no-oriented question), closing, and "[Your name]". No commentary, no subject line.`;
+SIGNATURE: You MUST sign the email with exactly: "Best," (or "Best regards," / "Thanks," per tone) followed by a newline and then exactly this name: ${settings.profile.name || 'Your name'}. Never use "[Your name]", "AI Email Writer", or invent a name. Use exactly the name provided.
+
+OUTPUT: The complete email only — greeting, body (label → Miner line → no-oriented question), closing, and signature. No commentary, no subject line.`;
 
       const response = await fetch('/api/ai/generate', {
         method: 'POST',
@@ -1140,6 +1146,8 @@ OUTPUT: The complete email only — greeting, body (label → Miner line → no-
       const signOff = settings.profile.name;
       if (signOff) {
         text = text.replace(/\[Your name\]/gi, signOff);
+        text = text.replace(/\bAI Email Writer\b/gi, signOff);
+        text = text.replace(/(Best,?|Best regards,?|Thanks,?|Regards,?)\s*\n\s*[^\n]+$/gm, `$1\n${signOff}`);
       }
       setTaskEmailContent(text);
       toast.success('Email generated!');
@@ -2472,7 +2480,7 @@ OUTPUT: The complete email only — greeting, body (label → Miner line → no-
                                 const res = await fetch('/api/ai/generate-email-reply', {
                                   method: 'POST',
                                   headers: { 'Content-Type': 'application/json' },
-                                  body: JSON.stringify({ emailId: email.id }),
+                                  body: JSON.stringify({ emailId: email.id, signerName: settings.profile.name }),
                                 });
                                 const data = await res.json();
                                 if (data.error) throw new Error(data.error);

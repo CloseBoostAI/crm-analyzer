@@ -20,7 +20,7 @@ export async function POST(request: NextRequest) {
   }
 
   const body = await request.json();
-  const { emailId } = body;
+  const { emailId, signerName } = body;
   if (!emailId) {
     return NextResponse.json({ error: 'emailId is required' }, { status: 400 });
   }
@@ -86,7 +86,10 @@ export async function POST(request: NextRequest) {
       .join('\n\n---\n\n');
   }
 
-  const systemPrompt = `You are a professional sales rep writing a reply to an email. Write a concise, helpful response that addresses the sender's message. Match the tone of the conversation. Do not include email headers (From, To, Subject) - only the body of your reply.`;
+  const signer = (signerName && String(signerName).trim()) || 'Your name';
+  const systemPrompt = `You are a professional sales rep writing a reply to an email. Write a concise, helpful response that addresses the sender's message. Match the tone of the conversation. Do not include email headers (From, To, Subject) - only the body of your reply.
+
+SIGNATURE: You MUST sign the reply with "Best," or "Best regards," followed by a newline and then exactly this name: ${signer}. Never use "[Your name]", "AI Email Writer", or invent a name. Use exactly the name provided.`;
 
   const userPrompt = `Here is the email thread to reply to:\n\n${threadContext}\n\nWrite a reply to the most recent message:`;
 
@@ -115,7 +118,12 @@ export async function POST(request: NextRequest) {
     }
 
     const data = await response.json();
-    const reply = data.choices?.[0]?.message?.content?.trim() || '';
+    let reply = data.choices?.[0]?.message?.content?.trim() || '';
+    if (signer && signer !== 'Your name') {
+      reply = reply.replace(/\[Your name\]/gi, signer);
+      reply = reply.replace(/\bAI Email Writer\b/gi, signer);
+      reply = reply.replace(/(Best,?|Best regards,?|Thanks,?|Regards,?)\s*\n\s*[^\n]+$/gm, `$1\n${signer}`);
+    }
     return NextResponse.json({ reply });
   } catch (error) {
     console.error('AI generate-email-reply error:', error);

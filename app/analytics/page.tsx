@@ -1032,6 +1032,23 @@ Recent Interactions: ${customer.interactions.map(i => i.notes).join(', ')}`
     }
   };
 
+  const completeEmailTasksForDeal = useCallback(async (dealId: string) => {
+    const emailPattern = /email|follow-up|follow up|reply|re-engage/i;
+    const toComplete = tasks.filter(
+      (t) =>
+        t.associatedDealId === dealId &&
+        t.status !== 'COMPLETED' &&
+        emailPattern.test(t.title || '') &&
+        (!t.userId || t.userId === currentUserId)
+    );
+    for (const t of toComplete) {
+      try {
+        await dbUpdateTask(t.id, { status: 'COMPLETED' });
+      } catch { /* ignore per-task errors */ }
+    }
+    if (toComplete.length > 0) await refreshTasksData();
+  }, [tasks, currentUserId, refreshTasksData]);
+
   const handleSendTaskEmail = async () => {
     if (!emailTaskTarget?.dealEmail?.trim() || !taskEmailContent.trim()) {
       toast.error('No email address or content to send');
@@ -1069,6 +1086,7 @@ Recent Interactions: ${customer.interactions.map(i => i.notes).join(', ')}`
       }
 
       handleDismissSmartTask(emailTaskTarget.id);
+      await completeEmailTasksForDeal(emailTaskTarget.dealId);
       setEmailTaskTarget(null);
       setTaskEmailContent('');
       await refreshTasksData();
@@ -2532,6 +2550,7 @@ OUTPUT: The complete email only — greeting, body (label → Miner line → no-
                                   );
                                   setGeneratedReplyForId(null);
                                   setGeneratedReplyText('');
+                                  if (email.dealId) await completeEmailTasksForDeal(email.dealId);
                                   toast.success('Reply sent');
                                 } catch (e: any) {
                                   toast.error(e?.message || 'Failed to send');
@@ -2770,6 +2789,7 @@ OUTPUT: The complete email only — greeting, body (label → Miner line → no-
                               });
                               const data = await res.json();
                               if (!res.ok) throw new Error(data.error || 'Failed to send');
+                              await completeEmailTasksForDeal(selectedCustomer.id);
                               toast.success('Email sent successfully!');
                             } catch (err: any) {
                               toast.error(err?.message || 'Failed to send email');

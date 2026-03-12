@@ -1246,21 +1246,6 @@ export default function SettingsPage() {
                   </Select>
                 </div>
 
-                <div className="flex items-center justify-between rounded-lg border p-4">
-                  <div className="space-y-0.5">
-                    <Label htmlFor="show-completed" className="text-base font-medium">
-                      Show Completed Tasks
-                    </Label>
-                    <p className="text-sm text-muted-foreground">
-                      Display completed tasks in the tasks table
-                    </p>
-                  </div>
-                  <Switch
-                    id="show-completed"
-                    checked={settings.tasks.showCompleted}
-                    onCheckedChange={(checked) => updateTaskSettings({ showCompleted: checked })}
-                  />
-                </div>
               </CardContent>
             </Card>
           )}

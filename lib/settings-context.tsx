@@ -72,7 +72,6 @@ type Settings = {
   }
   tasks: {
     sortBy: TaskSortBy
-    showCompleted: boolean
     layout: TasksLayout
   }
   appearance: {
@@ -111,7 +110,6 @@ const DEFAULT_SETTINGS: Settings = {
   },
   tasks: {
     sortBy: "dueDate",
-    showCompleted: true,
     layout: "topBottom",
   },
   appearance: {

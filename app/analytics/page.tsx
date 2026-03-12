@@ -522,11 +522,17 @@ export default function AnalyticsPage() {
     ),
     [filteredDeals, inboundEmails]
   );
+  const [dueTodayFilter, setDueTodayFilter] = useState(false);
   const visibleSmartTasks = useMemo(() => {
     let filtered = smartTasks.filter(t => !dismissedTaskIds.has(t.id));
     if (taskCategoryFilter !== 'all') filtered = filtered.filter(t => t.category === taskCategoryFilter);
+    if (dueTodayFilter) {
+      const endOfToday = new Date();
+      endOfToday.setHours(23, 59, 59, 999);
+      filtered = filtered.filter(t => t.dueDate <= endOfToday.getTime());
+    }
     return filtered;
-  }, [smartTasks, dismissedTaskIds, taskCategoryFilter]);
+  }, [smartTasks, dismissedTaskIds, taskCategoryFilter, dueTodayFilter]);
 
   const insights = useMemo(() => {
     const now = Date.now();
@@ -1927,6 +1933,18 @@ OUTPUT: The complete email only — greeting, body (label → Miner line → no-
                         >
                           All ({smartTasks.filter(t => !dismissedTaskIds.has(t.id)).length})
                         </Button>
+                        <Button
+                          variant={dueTodayFilter ? 'default' : 'outline'}
+                          size="sm"
+                          onClick={() => setDueTodayFilter(prev => !prev)}
+                        >
+                          Due Today ({smartTasks.filter(t => {
+                            if (dismissedTaskIds.has(t.id)) return false;
+                            const endOfToday = new Date();
+                            endOfToday.setHours(23, 59, 59, 999);
+                            return t.dueDate <= endOfToday.getTime();
+                          }).length})
+                        </Button>
                         {(['email', 'call', 'meeting', 'follow_up', 'update', 'review', 'proposal'] as TaskCategory[]).map(cat => {
                           const style = getCategoryStyle(cat);
                           const CatIcon = getCategoryIcon(cat);
@@ -2237,9 +2255,12 @@ OUTPUT: The complete email only — greeting, body (label → Miner line → no-
                     </div>
                   ) : taskEmailContent ? (
                     <>
-                      <div className="rounded-lg border p-4 bg-muted/50 min-h-[200px]">
-                        <pre className="whitespace-pre-wrap font-sans text-sm">{taskEmailContent}</pre>
-                      </div>
+                      <Textarea
+                        className="min-h-[200px] font-sans text-sm resize-y"
+                        value={taskEmailContent}
+                        onChange={(e) => setTaskEmailContent(e.target.value)}
+                        placeholder="Edit your email before sending..."
+                      />
                       <div className="flex justify-end gap-3 flex-wrap">
                         <Button variant="outline" onClick={() => setTaskEmailContent('')}>Clear</Button>
                         <Button

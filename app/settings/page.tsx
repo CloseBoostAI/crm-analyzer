@@ -40,6 +40,7 @@ import {
   Building2,
   Users,
   UserPlus,
+  Plus,
   Trash2,
   BarChart2,
   Link2,

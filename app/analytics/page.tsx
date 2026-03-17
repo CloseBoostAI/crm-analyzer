@@ -25,7 +25,7 @@ import {
 import { toast } from "sonner";
 import { type Customer, type CRMLog, type Deal, getDealStageColor, getDealDisplayName, getDealStageLabel, UNIVERSAL_DEAL_STAGES, matchDealStage, htmlToPlainText } from '@/lib/utils';
 import { Slider } from "@/components/ui/slider";
-import { FileText, CheckSquare, Trash2, Pencil, ArrowUp, ArrowDown, ArrowUpDown, Mail, Phone, Calendar, Clock, Send, Sparkles, AlertTriangle, Eye, X, Target, Plus, Users, Inbox, Check, Reply, RefreshCw, ChevronDown, ChevronUp } from "lucide-react";
+import { FileText, CheckSquare, Trash2, Pencil, ArrowUp, ArrowDown, ArrowUpDown, Mail, Phone, Calendar, Clock, Send, Sparkles, AlertTriangle, Eye, X, Target, Plus, Users, Inbox, Check, Reply, RefreshCw, ChevronDown, ChevronUp, Search } from "lucide-react";
 import { Input } from "@/components/ui/input";
 import { Label } from "@/components/ui/label";
 import {
@@ -481,7 +481,31 @@ export default function AnalyticsPage() {
   const [inboundEmailsLoading, setInboundEmailsLoading] = useState(false);
   const [inboundEmailSyncing, setInboundEmailSyncing] = useState(false);
   const [inboundEmailFilter, setInboundEmailFilter] = useState<'all' | 'pending' | 'acknowledged' | 'replied'>('all');
+  const [inboundEmailSearch, setInboundEmailSearch] = useState('');
   const [generatingReplyForId, setGeneratingReplyForId] = useState<string | null>(null);
+
+  const filteredInboundEmails = useMemo(() => {
+    if (!inboundEmailSearch.trim()) return inboundEmails;
+    const q = inboundEmailSearch.trim().toLowerCase();
+    return inboundEmails.filter((e) => {
+      const senderName = (e.senderName || '').toLowerCase();
+      const senderEmail = (e.senderEmail || '').toLowerCase();
+      const subject = (e.subject || '').toLowerCase();
+      const bodyText = (e.bodyText || '').toLowerCase();
+      const bodyHtml = (e.bodyHtml || '').toLowerCase();
+      const dealName = (e.dealName || '').toLowerCase();
+      const toEmail = (e.toEmail || '').toLowerCase();
+      return (
+        senderName.includes(q) ||
+        senderEmail.includes(q) ||
+        subject.includes(q) ||
+        bodyText.includes(q) ||
+        bodyHtml.includes(q) ||
+        dealName.includes(q) ||
+        toEmail.includes(q)
+      );
+    });
+  }, [inboundEmails, inboundEmailSearch]);
   const [sendingReplyForId, setSendingReplyForId] = useState<string | null>(null);
   const [generatedReplyForId, setGeneratedReplyForId] = useState<string | null>(null);
   const [generatedReplyText, setGeneratedReplyText] = useState('');
@@ -890,6 +914,30 @@ export default function AnalyticsPage() {
         });
       }, 500);
 
+      // Fetch previous email/contact history for this deal if we have a deal id and contact email
+      let previousContactContext = '';
+      if (customer.id && customer.email?.trim()) {
+        try {
+          const activityRes = await fetch(`/api/org/deals/${customer.id}/activity`);
+          if (activityRes.ok) {
+            const { items } = await activityRes.json();
+            if (items?.length > 0) {
+              const formatted = items
+                .slice(0, 15)
+                .map((i: { receivedAt: string; senderName: string | null; senderEmail: string; subject: string; bodyText: string | null; isFromUser: boolean }) => {
+                  const who = i.isFromUser ? 'You' : (i.senderName || i.senderEmail || 'Contact');
+                  const body = (i.bodyText || '').slice(0, 600).trim();
+                  return `[${new Date(i.receivedAt).toLocaleDateString()}] ${who}: Subject: ${i.subject || '(no subject)'}\n${body ? body + (body.length >= 600 ? '...' : '') : '(no body)'}`;
+                })
+                .join('\n\n---\n\n');
+              previousContactContext = `\n\nPrevious email/contact history with this prospect:\n${formatted}`;
+            }
+          }
+        } catch {
+          // Ignore activity fetch errors; proceed with notes only
+        }
+      }
+
       const toneValue = Number(emailTone);
 
       let toneInstructions = '';
@@ -919,7 +967,7 @@ export default function AnalyticsPage() {
 - Closing: "Best,"`;
       }
 
-      const systemMessage = `You are an AI email writer for sales follow-ups. Every email you generate MUST follow this exact 3-part structure in the body:
+      const systemMessage = `You are an AI email writer for sales follow-ups. When previous email/contact history is provided, use it to personalize your message—reference specific topics, concerns, or questions from the exchange. Every email you generate MUST follow this exact 3-part structure in the body:
 
 1. CHRIS VOSS LABEL: Open with exactly one sentence starting with "It seems like...", "It sounds like...", or "It looks like..." that names the prospect's current situation, emotion, or concern. This is a labeling technique — you are mirroring what the prospect is likely feeling or experiencing.
 
@@ -964,7 +1012,7 @@ Company: ${customer.company}
 Status: ${customer.status}
 Next Action: ${customer.nextAction}
 Deal Value: $${customer.value}
-Recent Interactions: ${customer.interactions.map(i => i.notes).join(', ')}`
+Recent Interactions: ${customer.interactions.map(i => i.notes).join(', ')}${previousContactContext}`
             }
           ]
         })
@@ -1104,6 +1152,28 @@ Recent Interactions: ${customer.interactions.map(i => i.notes).join(', ')}`
     setTaskEmailContent('');
     try {
       const deal = filteredDeals.find(d => d.id === task.dealId);
+      let previousContactContext = '';
+      if (task.dealId && task.dealEmail?.trim()) {
+        try {
+          const activityRes = await fetch(`/api/org/deals/${task.dealId}/activity`);
+          if (activityRes.ok) {
+            const { items } = await activityRes.json();
+            if (items?.length > 0) {
+              const formatted = items
+                .slice(0, 15)
+                .map((i: { receivedAt: string; senderName: string | null; senderEmail: string; subject: string; bodyText: string | null; isFromUser: boolean }) => {
+                  const who = i.isFromUser ? 'You' : (i.senderName || i.senderEmail || 'Contact');
+                  const body = (i.bodyText || '').slice(0, 600).trim();
+                  return `[${new Date(i.receivedAt).toLocaleDateString()}] ${who}: Subject: ${i.subject || '(no subject)'}\n${body ? body + (body.length >= 600 ? '...' : '') : '(no body)'}`;
+                })
+                .join('\n\n---\n\n');
+              previousContactContext = `\n\nPrevious email/contact history with this prospect:\n${formatted}`;
+            }
+          }
+        } catch {
+          // Ignore activity fetch errors
+        }
+      }
       const toneValue = Number(emailTone);
       let toneInstructions = '';
       if (toneValue === 0) {
@@ -1116,7 +1186,7 @@ Recent Interactions: ${customer.interactions.map(i => i.notes).join(', ')}`
         toneInstructions = `TONE: VERY DIRECT\n- Greeting: "[Name]," or "Hi [Name],"\n- Style: Extremely direct, zero fluff\n- Body: 3-4 lines total\n- Closing: "Best,"`;
       }
 
-      const systemMessage = `You are an AI email writer for sales follow-ups. Every email you generate MUST follow this exact 3-part structure in the body:
+      const systemMessage = `You are an AI email writer for sales follow-ups. When previous email/contact history is provided, use it to personalize your message—reference specific topics, concerns, or questions from the exchange. Every email you generate MUST follow this exact 3-part structure in the body:
 
 1. CHRIS VOSS LABEL: Open with exactly one sentence starting with "It seems like...", "It sounds like...", or "It looks like..." that names the prospect's current situation, emotion, or concern. This is a labeling technique — you are mirroring what the prospect is likely feeling or experiencing.
 
@@ -1152,7 +1222,7 @@ OUTPUT: The complete email only — greeting, body (label → Miner line → no-
             { role: "system", content: systemMessage },
             {
               role: "user",
-              content: `Generate a follow-up email for this prospect:\nName: ${task.dealContact}\nCompany: ${deal?.company || task.dealName}\nDeal Stage: ${task.dealStage}\nDeal Value: $${task.dealAmount}\nNotes: ${deal?.notes || 'No notes available'}\nLast Activity: ${deal?.lastActivity || 'Unknown'}\nContext: ${task.description}\nReason for outreach: ${task.reason}`
+              content: `Generate a follow-up email for this prospect:\nName: ${task.dealContact}\nCompany: ${deal?.company || task.dealName}\nDeal Stage: ${task.dealStage}\nDeal Value: $${task.dealAmount}\nNotes: ${deal?.notes || 'No notes available'}\nLast Activity: ${deal?.lastActivity || 'Unknown'}\nContext: ${task.description}\nReason for outreach: ${task.reason}${previousContactContext}`
             }
           ]
         })
@@ -2347,7 +2417,16 @@ OUTPUT: The complete email only — greeting, body (label → Miner line → no-
               </CardDescription>
             </CardHeader>
             <CardContent>
-              <div className="flex items-center gap-2 mb-4">
+              <div className="flex flex-wrap items-center gap-2 mb-4">
+                <div className="relative flex-1 min-w-[200px] max-w-sm">
+                  <Search className="absolute left-2.5 top-1/2 -translate-y-1/2 h-4 w-4 text-muted-foreground" />
+                  <Input
+                    placeholder="Search sender, subject, body..."
+                    value={inboundEmailSearch}
+                    onChange={(e) => setInboundEmailSearch(e.target.value)}
+                    className="pl-8"
+                  />
+                </div>
                 <Select value={inboundEmailFilter} onValueChange={(v) => setInboundEmailFilter(v as typeof inboundEmailFilter)}>
                   <SelectTrigger className="w-[180px]">
                     <SelectValue />
@@ -2379,9 +2458,15 @@ OUTPUT: The complete email only — greeting, body (label → Miner line → no-
                   <p className="font-medium">No client emails yet</p>
                   <p className="text-sm mt-1">Connect your Gmail or Outlook in Settings, then click Refresh to load emails.</p>
                 </div>
+              ) : filteredInboundEmails.length === 0 ? (
+                <div className="text-center py-12 text-muted-foreground">
+                  <Search className="h-12 w-12 mx-auto mb-3 opacity-50" />
+                  <p className="font-medium">No emails match your search</p>
+                  <p className="text-sm mt-1">Try a different search term or clear the search.</p>
+                </div>
               ) : (
                 <div className="space-y-6">
-                  {inboundEmails.map((email) => (
+                  {filteredInboundEmails.map((email) => (
                     <div
                       key={email.id}
                       className="border rounded-lg p-4 space-y-2"

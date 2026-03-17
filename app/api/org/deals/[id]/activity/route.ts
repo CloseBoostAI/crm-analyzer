@@ -1,0 +1,189 @@
+import { createClient } from '@/lib/supabase/server';
+import { createAdminClient } from '@/lib/supabase/admin';
+import { NextRequest, NextResponse } from 'next/server';
+import { extractReplyBody, htmlToPlainText } from '@/lib/utils';
+import {
+  findAllOAuthThreadsWithContact,
+  fetchThreadForDealEmail,
+} from '@/lib/email/fetch';
+
+export type ActivityItem = {
+  id: string;
+  receivedAt: string;
+  senderName: string | null;
+  senderEmail: string;
+  subject: string;
+  bodyText: string | null;
+  isFromUser: boolean;
+};
+
+export async function GET(
+  _request: NextRequest,
+  { params }: { params: Promise<{ id: string }> }
+) {
+  const supabase = await createClient();
+  const { data: { user } } = await supabase.auth.getUser();
+
+  if (!user) {
+    return NextResponse.json({ error: 'Unauthorized' }, { status: 401 });
+  }
+
+  const { id: dealId } = await params;
+
+  const { data: myMembership } = await supabase
+    .from('organization_members')
+    .select('organization_id')
+    .eq('user_id', user.id)
+    .limit(1)
+    .single();
+
+  if (!myMembership) {
+    return NextResponse.json({ error: 'Not in an organization' }, { status: 403 });
+  }
+
+  const organizationId = myMembership.organization_id;
+  const admin = createAdminClient();
+
+  const { data: members } = await admin
+    .from('organization_members')
+    .select('user_id')
+    .eq('organization_id', organizationId);
+  const userIds = (members || []).map((m: { user_id: string }) => m.user_id);
+  if (userIds.length === 0) {
+    return NextResponse.json({ items: [] });
+  }
+
+  const { data: deal, error: dealError } = await admin
+    .from('deals')
+    .select('id, email')
+    .eq('id', dealId)
+    .in('user_id', userIds)
+    .limit(1)
+    .maybeSingle();
+
+  if (dealError || !deal) {
+    return NextResponse.json({ error: 'Deal not found' }, { status: 404 });
+  }
+
+  const contactEmail = (deal.email || '').trim().toLowerCase();
+  const hasContactEmail = contactEmail.length > 0;
+
+  // Match: deal_id linked OR sender = contact (emails from contact) OR to = contact (emails to contact, if stored)
+  const seen = new Set<string>();
+  const rows: { id: string; sender_email: string | null; sender_name: string | null; subject: string | null; body_text: string | null; body_html: string | null; received_at: string; to_email?: string | null }[] = [];
+
+  const addRows = (data: typeof rows) => {
+    for (const r of data || []) {
+      if (!seen.has(r.id)) {
+        seen.add(r.id);
+        rows.push(r);
+      }
+    }
+  };
+
+  const { data: byDealId } = await admin
+    .from('inbound_emails')
+    .select('id, sender_email, sender_name, subject, body_text, body_html, received_at, to_email')
+    .eq('organization_id', organizationId)
+    .eq('deal_id', dealId)
+    .order('received_at', { ascending: false });
+  addRows(byDealId || []);
+
+  if (hasContactEmail) {
+    const { data: bySender } = await admin
+      .from('inbound_emails')
+      .select('id, sender_email, sender_name, subject, body_text, body_html, received_at, to_email')
+      .eq('organization_id', organizationId)
+      .ilike('sender_email', contactEmail)
+      .order('received_at', { ascending: false });
+    addRows(bySender || []);
+
+    const { data: byTo } = await admin
+      .from('inbound_emails')
+      .select('id, sender_email, sender_name, subject, body_text, body_html, received_at, to_email')
+      .eq('organization_id', organizationId)
+      .ilike('to_email', contactEmail)
+      .order('received_at', { ascending: false });
+    addRows(byTo || []);
+  }
+
+  rows.sort((a, b) => new Date(b.received_at).getTime() - new Date(a.received_at).getTime());
+
+  // Also fetch OAuth emails (Gmail/Outlook) for this contact – live from provider, not just DB
+  const oauthItems: ActivityItem[] = [];
+  if (hasContactEmail) {
+    try {
+      const threads = await findAllOAuthThreadsWithContact(organizationId, contactEmail);
+      const seenOauth = new Set<string>();
+      for (const { connectionId, messageId } of threads) {
+        const thread = await fetchThreadForDealEmail(
+          connectionId,
+          messageId,
+          user.id,
+          organizationId
+        );
+        if (!thread) continue;
+        for (const msg of thread.messages) {
+          const key = `${msg.receivedAt}:${(msg.senderEmail || '').toLowerCase()}`;
+          if (seenOauth.has(key)) continue;
+          seenOauth.add(key);
+          oauthItems.push({
+            id: `oauth:${connectionId}:${messageId}:${msg.receivedAt}`,
+            receivedAt: msg.receivedAt,
+            senderName: msg.senderName,
+            senderEmail: msg.senderEmail || '',
+            subject: thread.subject || '(no subject)',
+            bodyText: msg.bodyText || null,
+            isFromUser: msg.isFromUser,
+          });
+        }
+      }
+      oauthItems.sort((a, b) => new Date(b.receivedAt).getTime() - new Date(a.receivedAt).getTime());
+    } catch {
+      // OAuth fetch failed – continue with DB items only
+    }
+  }
+
+  const { data: conns } = await admin
+    .from('email_connections')
+    .select('email')
+    .in('user_id', userIds);
+  const orgEmails = new Set(
+    (conns || []).map((c: { email?: string }) => (c.email || '').toLowerCase()).filter(Boolean)
+  );
+
+  const dbItems: ActivityItem[] = (rows || []).map((row) => {
+    const rawBody = row.body_text || htmlToPlainText(row.body_html || '') || '';
+    const stripped = extractReplyBody(rawBody);
+    const bodyText = stripped.trim() || rawBody.trim().slice(0, 500) || null;
+    const senderLower = (row.sender_email || '').toLowerCase();
+    const isFromUser = orgEmails.has(senderLower);
+
+    return {
+      id: row.id,
+      receivedAt: row.received_at,
+      senderName: row.sender_name,
+      senderEmail: row.sender_email || '',
+      subject: row.subject || '(no subject)',
+      bodyText,
+      isFromUser,
+    };
+  });
+
+  // Merge DB + OAuth, dedupe by receivedAt + sender
+  const dedupeKey = (i: ActivityItem) => `${i.receivedAt}:${(i.senderEmail || '').toLowerCase()}`;
+  const seenKeys = new Set<string>();
+  const items: ActivityItem[] = [];
+  for (const i of [...oauthItems, ...dbItems]) {
+    const k = dedupeKey(i);
+    if (seenKeys.has(k)) continue;
+    seenKeys.add(k);
+    items.push(i);
+  }
+  items.sort((a, b) => new Date(b.receivedAt).getTime() - new Date(a.receivedAt).getTime());
+
+  return NextResponse.json(
+    { items },
+    { headers: { 'Cache-Control': 'no-store, max-age=0' } }
+  );
+}

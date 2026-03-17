@@ -832,6 +832,23 @@ export default function AnalyticsPage() {
       .finally(() => setInboundEmailsLoading(false));
   }, [activeTab, inboundEmailFilter, fetchInboundOnly]);
 
+  const completeEmailTasksForDeal = useCallback(async (dealId: string) => {
+    const emailPattern = /email|follow-up|follow up|reply|re-engage/i;
+    const toComplete = tasks.filter(
+      (t) =>
+        t.associatedDealId === dealId &&
+        t.status !== 'COMPLETED' &&
+        emailPattern.test(t.title || '') &&
+        (!t.userId || t.userId === currentUserId)
+    );
+    for (const t of toComplete) {
+      try {
+        await dbUpdateTask(t.id, { status: 'COMPLETED' });
+      } catch { /* ignore per-task errors */ }
+    }
+    if (toComplete.length > 0) await refreshTasksData();
+  }, [tasks, currentUserId, refreshTasksData]);
+
   if (loading) {
     return (
       <div className="container mx-auto py-10 px-4">
@@ -1031,23 +1048,6 @@ Recent Interactions: ${customer.interactions.map(i => i.notes).join(', ')}`
       console.error('Error clearing dismissed:', error);
     }
   };
-
-  const completeEmailTasksForDeal = useCallback(async (dealId: string) => {
-    const emailPattern = /email|follow-up|follow up|reply|re-engage/i;
-    const toComplete = tasks.filter(
-      (t) =>
-        t.associatedDealId === dealId &&
-        t.status !== 'COMPLETED' &&
-        emailPattern.test(t.title || '') &&
-        (!t.userId || t.userId === currentUserId)
-    );
-    for (const t of toComplete) {
-      try {
-        await dbUpdateTask(t.id, { status: 'COMPLETED' });
-      } catch { /* ignore per-task errors */ }
-    }
-    if (toComplete.length > 0) await refreshTasksData();
-  }, [tasks, currentUserId, refreshTasksData]);
 
   const handleSendTaskEmail = async () => {
     if (!emailTaskTarget?.dealEmail?.trim() || !taskEmailContent.trim()) {
